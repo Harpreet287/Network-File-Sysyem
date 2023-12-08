@@ -28,16 +28,28 @@ CLOCK* InitClock()
 {
     CLOCK* C = (CLOCK*) malloc(sizeof(CLOCK));
     if(CheckNull(C, "[-]InitClock: Error in allocating memory"))
+    {
+        fprintf(logs, "[-]InitClock: Error in allocating memory\n");
         exit(EXIT_FAILURE);
+    }
     
     C->bootTime = 0;
     C->bootTime = GetCurrTime(C);
     if(CheckError(C->bootTime, "[-]InitClock: Error in getting current time"))
+    {
+        fprintf(logs, "[-]InitClock: Error in getting current time\n");
+        free(C);
         exit(EXIT_FAILURE);
+    }
 
     int err = clock_gettime(CLOCK_MONOTONIC_RAW, &C->Btime);
     if(CheckError(err, "[-]InitClock: Error in getting current time"))
+    {
+        fprintf(logs, "[-]InitClock: Error in getting current time\n");
+        free(C);
         exit(EXIT_FAILURE);
+    }
+        
     return C;
 }
 
@@ -48,10 +60,18 @@ CLOCK* InitClock()
 **/
 double GetCurrTime(CLOCK* Clock)
 {
+    if(CheckNull(Clock, "[-]GetCurrTime: Invalid clock object"))
+    {
+        fprintf(logs, "[-]GetCurrTime: Invalid clock object\n");
+        return -1;
+    }
     struct timespec time;
     int err = clock_gettime(CLOCK_MONOTONIC_RAW, &time);
     if(CheckError(err, "[-]GetCurrTime: Error in getting current time"))
+    {
+        fprintf(logs, "[-]GetCurrTime: Error in getting current time\n");
         return -1;
+    }
     return (time.tv_sec + time.tv_nsec * 1e-9) - (Clock->bootTime);
 }
 
