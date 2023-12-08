@@ -15,13 +15,16 @@ int main(int argc, char *argv[])
     // Specify an address for the socket
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(NS_PORT);
+    server_address.sin_port = htons(NS_CLIENT_PORT);
     server_address.sin_addr.s_addr = inet_addr(NS_IP);
 
     // Connect to the server
-    int iConnectionStatus = connect(iClientSocket, (struct sockaddr *) &server_address, sizeof(server_address));
-    CheckError(iConnectionStatus, "[-]Error in connecting to server");
-
+    int iConnectionStatus;
+    while(CheckError(iConnectionStatus = connect(iClientSocket, (struct sockaddr *) &server_address, sizeof(server_address)), "[-]Error in connecting to server"))
+    {
+        printf(RED"[-]Client: Connection to server failed. Retrying...\n"reset);
+        sleep(1);
+    }
 
     printf(GRN"[+]Connected to the server\n"reset);
     printf(YEL"[+]Press enter to continue..."reset);

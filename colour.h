@@ -78,8 +78,8 @@
 #define COLOR_RESET "\e[0m"
 
 //Clear Screen
-#define CLEAR "\033[H\033[J"
-#define clear "\e[1;1H\e[2J"
+#define CLEAR "\033[H\033[J \n"
+#define clear "\e[1;1H\e[2J \n"
 
 //Clear Screen Function Call
 #define clearScreen() printf(clear)

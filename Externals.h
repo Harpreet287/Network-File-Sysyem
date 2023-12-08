@@ -9,7 +9,8 @@
 #define IP_LENGTH 16
 
 // NS IP and Port
-#define NS_PORT 8080
+#define NS_CLIENT_PORT 8080
+#define NS_SERVER_PORT 8081
 #define NS_IP LOCAL_MACHINE_IP
 
 // Request and Response Structs
@@ -36,7 +37,7 @@ typedef struct ACK_STRUCT
 
 
 // Function Prototypes
-void CheckError(int iStatus, char *sErrorMsg);
-void CheckNull(void *ptr, char *sErrorMsg);
+int CheckError(int iStatus, char *sErrorMsg);
+int CheckNull(void *ptr, char *sErrorMsg);
 
 #endif // _EXTERNALS_H_
