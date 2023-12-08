@@ -37,5 +37,5 @@ clean:
     	rm -rf $(LOG_FILE); \
 	fi
 
-logs:
+log:
 	cat $(LOG_FILE) | less

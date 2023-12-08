@@ -6,6 +6,8 @@
 
 
 #define MAX_QUEUE_SIZE 5
+#define MAX_PATH_LEN 1024
+#define LOG_FLUSH_INTERVAL 10
 
 // structure for clock object
 typedef struct Clock

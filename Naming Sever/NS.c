@@ -12,6 +12,9 @@
 // Local Header Files
 #include "Headers.h"
 #include "Client_Handle.h"
+#include "Trie.h"
+#include "LRU.h"
+
 // Global Header Files
 #include "../Externals.h"
 #include "../colour.h"
@@ -20,6 +23,8 @@
 CLIENT_HANDLE_LIST_STRUCT* clientHandleList;
 FILE *logs;
 CLOCK* Clock;
+TrieNode* MountTrie;
+LRUCache* MountCache;
 
 /**
  * Initializes the clock object.
@@ -161,6 +166,26 @@ void* Client_Handler_Thread(void* clientHandle)
     return NULL;
 }
 
+// Thread to flush the logs periodically
+void* Log_Flusher_Thread()
+{
+    while(1)
+    {
+        sleep(LOG_FLUSH_INTERVAL);
+        printf(BBLK"[+]Log Flusher Thread: Flushing logs\n"reset);
+
+        fprintf(logs, "[+]Log Flusher Thread: Flushing logs [Time Stamp: %f]\n", GetCurrTime(Clock));
+        fprintf(logs, "------------------------------------------------------------\n");
+        fprintf(logs, "Current Mount Trie:\n");
+        fprintf(logs, "%s\n",Get_Directory_Tree(MountTrie, "mount"));
+        fprintf(logs, "Number of Current Clients: %d\n", clientHandleList->iClientCount);
+        fprintf(logs, "------------------------------------------------------------\n");
+        
+        fflush(logs);
+    }
+    return NULL;
+}
+
 int main(int argc, char *argv[])
 {
     // Open the logs file
@@ -169,15 +194,27 @@ int main(int argc, char *argv[])
     // Initialize the Naming Server Global Variables
     clientHandleList = InitializeClientHandleList();
 
+    // Initialize the Mount Paths Trie
+    MountTrie = Init_Trie();
+    Insert_Path(MountTrie, "mount", NULL);
+
+    // Initialize the LRU Cache
+    MountCache = createCache();
+
     // Initialize the clock object
     Clock = InitClock();
+
+    // Create a thread to flush the logs periodically
+    pthread_t tLogFlusherThread;
+    int iThreadStatus = pthread_create(&tLogFlusherThread, NULL, Log_Flusher_Thread, NULL);
+    if(CheckError(iThreadStatus, "[-]Error in creating thread")) return 1;
 
     printf(BGRN"[+]Naming Server Initialized\n"reset);
     fprintf(logs, "[+]Naming Server Initialized [Time Stamp: %f]\n", GetCurrTime(Clock));
 
     // Create a thread to accept client connections
     pthread_t tClientAcceptorThread;
-    int iThreadStatus = pthread_create(&tClientAcceptorThread, NULL, Client_Acceptor_Thread, NULL);
+    iThreadStatus = pthread_create(&tClientAcceptorThread, NULL, Client_Acceptor_Thread, NULL);
     if(CheckError(iThreadStatus, "[-]Error in creating thread")) return 1;
 
     // Wait for the thread to terminate
