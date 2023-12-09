@@ -189,7 +189,11 @@ void printCache(LRUCache *cache)
     printf("\n");
 }
 
-
+/**
+ * @brief Deallocates the cache
+ * @param cache: The cache object
+ * @note: Removes all the nodes from the cache and frees the cache object
+*/
 void freeCache(LRUCache *cache)
 {
     Node *current = cache->head;

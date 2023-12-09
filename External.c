@@ -4,7 +4,6 @@
 #include <string.h>
 #include <errno.h>
 
-// Path: External.c
 
 /**
  * Checks if the status is less than 0 and prints the error message.

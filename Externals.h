@@ -14,6 +14,25 @@
 #define NS_IP LOCAL_MACHINE_IP
 
 // Request and Response Structs
+/*
+FLOW OF REQUEST AND RESPONSE PACKETS
+Client -> Naming Server
+    1. Client sends a request to the naming server
+    2. Naming server sends a response to the client
+Client -> Storage Server
+    1. Client sends a request to the storage server
+    2. Storage server sends a response to the client
+Storage Server -> Naming Server
+    1. Storage server sends a request to the naming server
+    2. Naming server sends a response to the storage server
+Naming Server -> Storage Server
+    1. Naming server sends a request to the storage server
+    2. Storage server sends a response to the naming server
+
+::: Simple Pneumonic :::
+    1. Receive Request
+    2. Send Response
+*/
 
 // Request Struct
 typedef struct REQUEST_STRUCT
@@ -28,6 +47,11 @@ typedef struct RESPONSE_STRUCT
 // Storage-Server Init Struct
 typedef struct STORAGE_SERVER_INIT_STRUCT
 {
+    char sServerIP[IP_LENGTH];
+    int sServerPort_Client;  // Port on which the storage server will listen for client
+    int sServerPort_NServer; // Port on which the storage server will listen for NServer
+
+    char MountPaths[MAX_BUFFER_SIZE]; // \n separated list of mount paths
 } STORAGE_SERVER_INIT_STRUCT;
 
 // ACK Struct

@@ -9,7 +9,7 @@
 
 typedef struct CLIENT_HANDLE_STRUCT
 {
-    int ClientID;
+    unsigned long ClientID;
     char sClientIP[IP_LENGTH];
     int sClientPort;
     int iClientSocket;
@@ -29,5 +29,5 @@ CLIENT_HANDLE_LIST_STRUCT* InitializeClientHandleList();
 int AddClient(CLIENT_HANDLE_STRUCT *clientHandle, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
 int RemoveClient(int clientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
 
-
+unsigned long GetClientID(CLIENT_HANDLE_STRUCT *clientHandle);
 #endif
