@@ -21,7 +21,15 @@
 */
 void Ecmd(char* arg, int ServerSockfd)
 {
-    CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: EXIT", CMD_ERROR_INVALID_ARGUMENTS_COUNT));
+    if(arg != NULL)
+    {
+        char* Msg = ErrorMsg("Invalid Argument\nUSAGE: EXIT", CMD_ERROR_INVALID_ARGUMENTS_COUNT);
+        printf(RED"%s"reset"\n", Msg);
+        fprintf(Clientlog, "[+]Ecmd: %s [Time Stamp: %f]\n", Msg, GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
     fprintf(Clientlog, "[+]Ecmd: Exiting Client [Time Stamp: %f]\n", GetCurrTime(Clock));
     printf("[+]Exiting\n");
     clearScreen();
@@ -41,8 +49,15 @@ void Ecmd(char* arg, int ServerSockfd)
 */
 void Hcmd(char* arg, int ServerSockfd)
 {
-    if(CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: HELP", CMD_ERROR_INVALID_ARGUMENTS_COUNT)))
+    if(arg != NULL)
+    {
+        char* Msg = ErrorMsg("Invalid Argument\nUSAGE: HELP", CMD_ERROR_INVALID_ARGUMENTS_COUNT);
+        printf(RED"%s"reset"\n", Msg);
+        fprintf(Clientlog, "[+]Hcmd: %s [Time Stamp: %f]\n", Msg, GetCurrTime(Clock));
+        free(Msg);
         return;
+    }
+    
     fprintf(Clientlog, "[+]Hcmd: Printing Help Menu [Time Stamp: %f]\n", GetCurrTime(Clock));
     
     printf(GRNHB"=====================HELP MENU==================f==="reset"\n");
@@ -77,7 +92,16 @@ void Hcmd(char* arg, int ServerSockfd)
 */
 void CScmd(char* arg, int ServerSockfd)
 {
-    CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: CLEAR", CMD_ERROR_INVALID_ARGUMENTS_COUNT));
+    if(arg != NULL)
+    {
+        char* Msg = ErrorMsg("Invalid Argument\nUSAGE: HELP", CMD_ERROR_INVALID_ARGUMENTS_COUNT);
+        printf(RED"%s"reset"\n", Msg);
+        fprintf(Clientlog, "[+]CScmd: %s [Time Stamp: %f]\n", Msg, GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+    
+
     fprintf(Clientlog, "[+]CScmd: clearing screen [Time Stamp: %f]\n", GetCurrTime(Clock));
     clearScreen();
     return;

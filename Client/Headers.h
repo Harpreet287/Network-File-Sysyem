@@ -9,7 +9,7 @@
 
 #define POLL_TIME 2
 #define SLEEP_TIME 5
-#define FUNCTION_COUNT 17
+#define FUNCTION_COUNT 101
 
 // structure for clock object
 typedef struct Clock

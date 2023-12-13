@@ -20,10 +20,12 @@ int CheckError(int iStatus, char *sErrorMsg)
 {
     if(iStatus < 0)
     {
-        perror(sErrorMsg);
+        printf("%s\n",sErrorMsg);
+        if(setjmp(jmpbuffer) != 0)
+            free(sErrorMsg);
         return 1;
     }
-    if(setjmp(jmpbuffer) != 0)
+    else if(setjmp(jmpbuffer) != 0) 
     {
        free(sErrorMsg);
     }
@@ -41,8 +43,7 @@ int CheckNull(void *ptr, char *sErrorMsg)
 {
     if(ptr == NULL)
     {
-        printf("Error: %s\n", sErrorMsg);
-        perror(sErrorMsg);
+        printf("%s\n",sErrorMsg);
         return 1;
     }
     if(setjmp(jmpbuffer) != 0)
@@ -69,6 +70,6 @@ char* ErrorMsg(char* msg, int ErrorCode)
         exit(EXIT_FAILURE);
     }
     
-    snprintf(ErrorMsg, ERROR_MSG_LEN, RED"ERROR: %d-%s\n"reset, ErrorCode, msg);
+    snprintf(ErrorMsg, ERROR_MSG_LEN, RED"ERROR: %d-%s"reset, ErrorCode, msg);
     return ErrorMsg;
 }

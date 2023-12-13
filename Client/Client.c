@@ -258,7 +258,8 @@ int main(int argc, char *argv[])
         // Execute the command
 
         functionPointer CMD = lookup(table, cCommand);
-        if (CheckNull(CMD, ErrorMsg("Command not found", CMD_ERROR_INVALID_COMMAND)))
+        char* Msg = ErrorMsg("Command not found", CMD_ERROR_INVALID_COMMAND);
+        if (CheckNull(CMD,Msg ))
         {
             fprintf(Clientlog, "[-]Command not found [Time Stamp: %f]\n",GetCurrTime(Clock));
             continue;
