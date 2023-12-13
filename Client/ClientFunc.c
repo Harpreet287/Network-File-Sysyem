@@ -41,12 +41,13 @@ void Ecmd(char* arg, int ServerSockfd)
 */
 void Hcmd(char* arg, int ServerSockfd)
 {
-    CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: HELP", CMD_ERROR_INVALID_ARGUMENTS_COUNT));
+    if(CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: HELP", CMD_ERROR_INVALID_ARGUMENTS_COUNT)))
+        return;
     fprintf(Clientlog, "[+]Hcmd: Printing Help Menu [Time Stamp: %f]\n", GetCurrTime(Clock));
     
-    printf(GRNHB"=====================HELP MENU=====================\n"reset);
+    printf(GRNHB"=====================HELP MENU==================f==="reset"\n");
     printf(YEL"Avaliable Commands:\n"reset
-            GRNB
+            BGRN
             "1. READ <Path>: Reads the file at the given path\n"
             "2. WRITE <Flag> <Path>: Writes to the file at the given path. Flag can set to either \'O\': Overwrite or to \'A\': Append\n"
             "3. COPY <Source Path> <Destination Path>: Copies the file(s) from the source path to the destination path (Note: If source path is a Directory, Everthing Under the source path is copied)\n"
@@ -60,7 +61,7 @@ void Hcmd(char* arg, int ServerSockfd)
             "11. HELP: Prints the help menu\n"
             "12. EXIT: Exits the client\n"
             reset);
-    printf(GRNHB"==================================================\n"reset);
+    printf(GRNHB"=================================================="reset"\n");
 
 
     printf("Press any key to continue\n");

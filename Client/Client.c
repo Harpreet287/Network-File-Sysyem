@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/select.h>
-#include <sys/time.h>
+#include <time.h>
 
 // Custom Header Files
 #include "../Externals.h"
@@ -212,12 +212,15 @@ int main(int argc, char *argv[])
     int iConnectionStatus;
     while (CheckError(iConnectionStatus = connect(iClientSocket, (struct sockaddr *)&server_address, sizeof(server_address)), "[-]Error in connecting to server"))
     {
-        printf(RED "[-]Client: Connection to server failed. Retrying...\n" reset);
+        printf(RED "Retrying...\n" reset);
         sleep(1);
     }
 
+    printf("[+]Connected to the server\n");
+    fprintf(Clientlog, "[+]Connected to the server [Time Stamp: %f]\n",GetCurrTime(Clock));
+
     // Connection established, receive identification ID (Client ID)
-    int iRecvStatus  = recv(iClientSocket, &iClientID, sizeof(int), 0);
+    int iRecvStatus  = recv(iClientSocket, &iClientID, sizeof(unsigned long), 0);
     printf("[+]Getting ID from Server\n");
     
     if(CheckError(iRecvStatus, "[-]recv: Error in receiving Client ID"))

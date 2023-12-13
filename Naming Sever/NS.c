@@ -165,10 +165,16 @@ void* Client_Handler_Thread(void* clientHandle)
     //Send The Client It alloted ID
     unsigned long ClientID = client->ClientID;
     int iSendStatus = send(client->iClientSocket, &ClientID, sizeof(unsigned long), 0);
-    if(CheckError(iSendStatus, "[-]Client Handler Thread: Error in sending data to client")) return NULL;
+    if(CheckError(iSendStatus, "[-]Client Handler Thread: Error in sending data to client"))
+    {
+        fprintf(logs, "[-]Client Handler Thread: Error in sending data to client\n");
+        RemoveClient(ClientID, clientHandleList);
+        close(client->iClientSocket);
+        return NULL;
+    }
 
     // Close the socket
-    RemoveClient(client->ClientID, clientHandleList);
+    RemoveClient(ClientID, clientHandleList);
     close(client->iClientSocket);
 
     return NULL;

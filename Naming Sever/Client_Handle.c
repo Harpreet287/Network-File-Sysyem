@@ -96,6 +96,7 @@ int RemoveClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandle
         if(clientHandleList->clientList[i].ClientID == ClientID)
         {
             clientHandle = &clientHandleList->clientList[i];
+            clientHandleList->InUseList[i] = 0;
             break;
         }
     }
@@ -108,11 +109,11 @@ int RemoveClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandle
     }
 
     // Remove the client
-    clientHandleList->InUseList[clientHandle->ClientID] = 0;
     clientHandleList->iClientCount--;
     pthread_mutex_unlock(&clientHandleList->clientListMutex);
 
     printf(GRN"[+]RemoveClient: Client-%lu (%s:%d) removed from client list\n"reset, clientHandle->ClientID, clientHandle->sClientIP, clientHandle->sClientPort);
     fprintf(logs, "[+]RemoveClient: Client-%lu (%s:%d) removed from client list [Time Stamp: %f]\n", clientHandle->ClientID, clientHandle->sClientIP, clientHandle->sClientPort, GetCurrTime(Clock));
 }
+
 

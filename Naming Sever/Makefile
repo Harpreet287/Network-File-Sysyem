@@ -1,5 +1,5 @@
 GLOBAL_DEPS_SRC = ..
-GLOBAL_DEPS = External.c 
+GLOBAL_DEPS = Externals.c 
 CC = /usr/bin/gcc
 CFLAGS = -fdiagnostics-color=always -g
 SRC_DIR = .
