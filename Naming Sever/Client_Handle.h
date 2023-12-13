@@ -27,7 +27,7 @@ typedef struct CLIENT_HANDLE_LIST_STRUCT
 // Function Prototypes
 CLIENT_HANDLE_LIST_STRUCT* InitializeClientHandleList();
 int AddClient(CLIENT_HANDLE_STRUCT *clientHandle, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
-int RemoveClient(int clientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
+int RemoveClient(unsigned long clientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
 
 unsigned long GetClientID(CLIENT_HANDLE_STRUCT *clientHandle);
 #endif

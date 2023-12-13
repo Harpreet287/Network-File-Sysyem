@@ -8,8 +8,6 @@
 #include <sys/times.h>
 #include <semaphore.h>
 
-
-
 // Local Header Files
 #include "Headers.h"
 #include "Client_Handle.h"
@@ -148,6 +146,7 @@ void* Client_Handler_Thread(void* clientHandle)
     printf(UGRN"[+]Client Handler Thread Initialized for Client %lu (%s:%d)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
     fprintf(logs, "[+]Client Handler Thread Initialized for Client %lu (%s:%d)\n", client->ClientID, client->sClientIP, client->sClientPort);
 
+    /*
     // Send data to the client
     char sServerResponse[MAX_BUFFER_SIZE];
     sprintf(sServerResponse, "Hello Client %lu", client->ClientID);
@@ -161,6 +160,12 @@ void* Client_Handler_Thread(void* clientHandle)
 
     printf(GRN"[+]Client Handler Thread: Client %lu sent: %s\n"reset, client->ClientID, sClientRequest);
     fprintf(logs, "[+]Client Handler Thread: Client %lu sent: %s\n", client->ClientID, sClientRequest);
+    */
+
+    //Send The Client It alloted ID
+    unsigned long ClientID = client->ClientID;
+    int iSendStatus = send(client->iClientSocket, &ClientID, sizeof(unsigned long), 0);
+    if(CheckError(iSendStatus, "[-]Client Handler Thread: Error in sending data to client")) return NULL;
 
     // Close the socket
     RemoveClient(client->ClientID, clientHandleList);

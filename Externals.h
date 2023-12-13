@@ -3,15 +3,31 @@
 #ifndef _EXTERNALS_H_
 #define _EXTERNALS_H_
 
+#include <setjmp.h>
+
 // Standard defines
 #define LOCAL_MACHINE_IP "127.0.0.1"
 #define MAX_BUFFER_SIZE 1024
 #define IP_LENGTH 16
+#define ERROR_MSG_LEN 100
+#define INPUT_SIZE 1024
+#define MAX_FILE_NAME 256
 
 // NS IP and Port
 #define NS_CLIENT_PORT 8080
 #define NS_SERVER_PORT 8081
 #define NS_IP LOCAL_MACHINE_IP
+
+// CMD Codes
+#define CMD_READ 1
+#define CMD_WRITE 2
+#define CMD_CREATE 3
+#define CMD_DELETE 4
+#define CMD_INFO 5
+#define CMD_LIST 6
+#define CMD_MOVE 7
+#define CMD_COPY 8
+#define CMD_RENAME 9
 
 // Request and Response Structs
 /*
@@ -37,6 +53,10 @@ Naming Server -> Storage Server
 // Request Struct
 typedef struct REQUEST_STRUCT
 {
+    int iRequestOperation; // Operation to be performed
+    unsigned long iRequestClientID;  // Client ID
+    char sRequestPath[MAX_BUFFER_SIZE]; // Path
+    int iRequestFlags;     // Flags
 } REQUEST_STRUCT;
 
 // Response Struct
@@ -59,9 +79,14 @@ typedef struct ACK_STRUCT
 {
 } ACK_STRUCT;
 
+// // Error Catch buffer
+// extern jmp_buf jmpbuffer;
 
 // Function Prototypes
 int CheckError(int iStatus, char *sErrorMsg);
 int CheckNull(void *ptr, char *sErrorMsg);
+char* ErrorMsg(char* msg, int ErrorCode);
+
+
 
 #endif // _EXTERNALS_H_

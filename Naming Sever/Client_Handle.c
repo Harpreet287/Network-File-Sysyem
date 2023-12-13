@@ -72,14 +72,13 @@ int AddClient(CLIENT_HANDLE_STRUCT *clientHandle, CLIENT_HANDLE_LIST_STRUCT *cli
     fprintf(logs, "[-]AddClient: Error adding client-%lu (%s:%d) [Time Stamp: %f]\n", clientHandle->ClientID, clientHandle->sClientIP, clientHandle->sClientPort, GetCurrTime(Clock));
     return -1;    
 }
-
 /**
  * Removes a client from the client list.
  *
  * @param ClientID The ID of the client to be removed.
  * @return -1 if there are no clients in the list or the client is not found, otherwise 0.
  */
-int RemoveClient(int ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList)
+int RemoveClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList)
 {
     pthread_mutex_lock(&clientHandleList->clientListMutex);
     if(clientHandleList->iClientCount == 0)
