@@ -3,6 +3,7 @@
 
 // Standard Libraries
 #include <sys/time.h>
+#include <stdio.h>
 
 // Custom Libraries
 #include "./Hash.h"
@@ -10,6 +11,8 @@
 #define POLL_TIME 2
 #define SLEEP_TIME 5
 #define FUNCTION_COUNT 101
+
+#define PROMPT_LEN 1024
 
 // structure for clock object
 typedef struct Clock
@@ -30,6 +33,7 @@ extern CLOCK* Clock;
 
 // Function Prototypes
 int pollServer(int sockfd, char* ip, int port);
+void prompt();
 
 //Client Side Commands
 void Ecmd(char* arg, int ServerSockfd);

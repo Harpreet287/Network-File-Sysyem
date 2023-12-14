@@ -10,7 +10,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/select.h>
-#include <time.h>
+#include <sys/time.h>
+
 
 // Custom Header Files
 #include "../Externals.h"
@@ -247,6 +248,7 @@ int main(int argc, char *argv[])
 
     while (iClientSocket = pollServer(iClientSocket, NS_IP, NS_CLIENT_PORT))
     {
+        prompt();
         // Get input from the user
         char cInput[INPUT_SIZE];
         scanf("%[^\n]%*c", cInput);

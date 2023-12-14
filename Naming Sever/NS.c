@@ -14,6 +14,7 @@
 #include "Server_Handle.h"
 #include "Trie.h"
 #include "LRU.h"
+#include "ErrorCodes.h"
 
 // Global Header Files
 #include "../Externals.h"
@@ -27,6 +28,57 @@ CLOCK* Clock;
 TrieNode* MountTrie;
 LRUCache* MountCache;
 sem_t serverStartSem;
+
+
+SERVER_HANDLE_STRUCT* ResolvePath(char* path)
+{
+    // Check if the path is in the cache
+    SERVER_HANDLE_STRUCT* server = get(MountCache, path);
+    if(server != NULL)
+    {
+        fprintf(logs, "[+]ResolvePath: Path %s found in cache [Time Stamp: %f]\n", path, GetCurrTime(Clock));
+        return server;
+    }
+
+    // Resolve the path
+    server = Get_Server(MountTrie, path);
+
+    if(server == NULL)
+    {
+        fprintf(logs, "[-]ResolvePath: Path %s not found in mount trie [Time Stamp: %f]\n", path, GetCurrTime(Clock));
+    }
+    else
+    {
+        fprintf(logs, "[+]ResolvePath: Path %s found in mount trie [Time Stamp: %f]\n", path, GetCurrTime(Clock));
+        // Add the path to the cache
+        put(MountCache, path, server);
+    }
+
+    return server;
+}
+
+/**
+ * @brief Checks if the given socket is connected( Readable )
+ * @param sockfd: The socket to check
+ * @return: 1 if the socket is connected, 0 otherwise
+ * @note: This function is non-blocking
+*/
+int IsSocketConnected(int sockfd)
+{
+    fd_set fd;
+    FD_ZERO(&fd);
+    FD_SET(sockfd, &fd);
+    struct timeval tv = {0};
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int iSelectStatus = select(sockfd + 1, &fd, NULL, NULL, &tv);
+    if(CheckError(iSelectStatus, "[-]IsSocketConnected: Error in select"))
+    {
+        fprintf(logs, "[-]IsSocketConnected: Error in select\n");
+        return 0;
+    }
+    return FD_ISSET(sockfd, &fd);
+}
 
 /**
  * Initializes the clock object.
@@ -173,6 +225,70 @@ void* Client_Handler_Thread(void* clientHandle)
         return NULL;
     }
 
+    // Set Up request listener for the client
+    while(IsSocketConnected(client->iClientSocket))
+    {
+        // Receive the request from the client
+        REQUEST_STRUCT request;
+    
+        int iRecvStatus = recv(client->iClientSocket, &request, sizeof(request), 0);
+        if(CheckError(iRecvStatus, "[-]Client Handler Thread: Error in receiving data from client"))
+        {
+            fprintf(logs, "[-]Client Handler Thread: Error in receiving data from client\n");
+            RemoveClient(ClientID, clientHandleList);
+            close(client->iClientSocket);
+            return NULL;
+        }
+        else if(iRecvStatus == 0)
+            break;
+        
+        // Handle the request (Generate a response)
+        RESPONSE_STRUCT response;
+        memset(&response, 0, sizeof(response));
+        response.iResponseOperation = request.iRequestOperation;
+        response.iResponseErrorCode = CMD_ERROR_SUCCESS;
+
+        switch (request.iRequestOperation)
+        {
+            case CMD_READ:
+            {
+                fprintf(logs, "[+]Client Handler Thread: Client %lu requested to read file %s\n", client->ClientID, request.sRequestPath);
+                // Do a path resolution
+                SERVER_HANDLE_STRUCT* server = ResolvePath(request.sRequestPath);
+
+                if(server == NULL)
+                {
+                    fprintf(logs, "[-]Client Handler Thread: Error in resolving path for client %lu\n", client->ClientID);
+                    response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
+                    break;
+                }
+            
+                fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+                // Populate the response struct with Server IP and Port
+                snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);
+                response.iResponseServerID = server->ServerID;
+                break;
+            }
+            default:
+            {
+                response.iResponseErrorCode = CMD_ERROR_INVALID_OPERATION;
+                break;
+            }
+        }
+        
+        // Send the response to the client
+        int iSendStatus = send(client->iClientSocket, &response, sizeof(response), 0);
+        if(iSendStatus != sizeof(response))
+        {
+            fprintf(logs, "[-]Client Handler Thread: Error in sending response to client %lu\n", client->ClientID);
+            break;
+        }
+
+        fprintf(logs, "[+]Client Handler Thread: Sent response {%s} to client %lu\n",response.sResponseData, client->ClientID);        
+    }
+
+    printf(URED"[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
+    fprintf(logs, "[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n", client->ClientID, client->sClientIP, client->sClientPort);
     // Close the socket
     RemoveClient(ClientID, clientHandleList);
     close(client->iClientSocket);

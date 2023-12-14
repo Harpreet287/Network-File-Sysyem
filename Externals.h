@@ -62,6 +62,11 @@ typedef struct REQUEST_STRUCT
 // Response Struct
 typedef struct RESPONSE_STRUCT
 {
+    int iResponseOperation; // Operation to be performed
+    int iResponseErrorCode; // Error Code
+    char sResponseData[MAX_BUFFER_SIZE]; // Data
+    int iResponseFlags;     // Flags
+    unsigned long iResponseServerID; // Server ID
 } RESPONSE_STRUCT;
 
 // Storage-Server Init Struct
