@@ -70,7 +70,14 @@ void Rcmd(char* arg, int ServerSockfd)
         free(Msg);
         return;
     }
+    else if(res->iResponseFlags == BACKUP_RESPONSE)
+    {
+        printf(YEL"Corresponding Storage Server is down. Trying to read from backup server\n"reset);
+        fprintf(Clientlog, "[+]Rcmd: Corresponding Storage Server is down. Trying to read from backup server [Time Stamp: %f]\n", GetCurrTime(Clock));
 
+        memset(req->sRequestPath, 0, sizeof(req->sRequestPath));
+        snprintf(req->sRequestPath, MAX_BUFFER_SIZE, "./backup%s", path);
+    }
     // The response data is the IP and Port of the storage server serving the file seperated by a space
     char* ip = strtok(res->sResponseData, " ");
     char* port = strtok(NULL, " ");

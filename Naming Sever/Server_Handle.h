@@ -47,4 +47,8 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
 
 unsigned long GetServerID(SERVER_HANDLE_STRUCT *serverHandle); 
 
+int IsActive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleList);
+
+SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_LIST_STRUCT *BackUpList);
+
 #endif

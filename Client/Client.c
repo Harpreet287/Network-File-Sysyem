@@ -26,7 +26,8 @@ unsigned long iClientID;
 CLOCK* Clock;
 
 /**
- * Initializes the clock object.
+ * @brief Initializes the clock object.
+ * @return: A pointer to the clock object on success, NULL on failure.
 **/
 CLOCK* InitClock()
 {

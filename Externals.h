@@ -18,7 +18,7 @@
 #define NS_SERVER_PORT 8081
 #define NS_IP LOCAL_MACHINE_IP
 
-// CMD Codes
+// Command Codes
 #define CMD_READ 1
 #define CMD_WRITE 2
 #define CMD_CREATE 3
@@ -28,6 +28,10 @@
 #define CMD_MOVE 7
 #define CMD_COPY 8
 #define CMD_RENAME 9
+
+// Response Flags
+#define RESPONSE_FLAG_SUCCESS 0
+#define BACKUP_RESPONSE 1
 
 // Request and Response Structs
 /*
@@ -87,7 +91,6 @@ typedef struct ACK_STRUCT
 // // Error Catch buffer
 // extern jmp_buf jmpbuffer;
 
-// Function Prototypes
 int CheckError(int iStatus, char *sErrorMsg);
 int CheckNull(void *ptr, char *sErrorMsg);
 char* ErrorMsg(char* msg, int ErrorCode);

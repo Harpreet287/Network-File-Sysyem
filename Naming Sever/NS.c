@@ -9,12 +9,12 @@
 #include <semaphore.h>
 
 // Local Header Files
-#include "Headers.h"
-#include "Client_Handle.h"
-#include "Server_Handle.h"
-#include "Trie.h"
-#include "LRU.h"
-#include "ErrorCodes.h"
+#include "./Headers.h"
+#include "./Client_Handle.h"
+#include "./Server_Handle.h"
+#include "./Trie.h"
+#include "./LRU.h"
+#include "./ErrorCodes.h"
 
 // Global Header Files
 #include "../Externals.h"
@@ -263,6 +263,22 @@ void* Client_Handler_Thread(void* clientHandle)
                     break;
                 }
             
+                response.iResponseFlags = RESPONSE_FLAG_SUCCESS;
+                // Check if the server is active
+                if(IsActive(server->ServerID, serverHandleList) == 0)
+                {
+                    // Switch to backup server
+                    server = GetActiveBackUp(serverHandleList , server->backupServers);
+                    if(server == NULL)
+                    {
+                        fprintf(logs, "[-]Client Handler Thread: Error in getting active backup server for client %lu\n", client->ClientID);
+                        response.iResponseErrorCode = CMD_ERROR_BACKUP_UNAVAILABLE;
+                        break;
+                    }
+                    response.iResponseFlags = BACKUP_RESPONSE;
+                    fprintf(logs, "[+]Client Handler Thread: Switched to backup server %lu (%s:%d) for client %lu\n", server->ServerID, server->sServerIP, server->sServerPort_Client, client->ClientID);
+                }
+
                 fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
                 // Populate the response struct with Server IP and Port
                 snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);

@@ -1,5 +1,5 @@
 #include "Server_Handle.h"
-#include "Headers.h"
+#include "./Headers.h"
 #include "../colour.h"
 #include <string.h>
 #include <stdlib.h>
@@ -141,6 +141,33 @@ int SetInactive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleL
     return -1;
 }
 /**
+ * @brief Sets a server to active
+ * @param serverID: The server ID
+ * @param serverHandleList: The server handle list object
+ * @return: 0 on success, -1 on failure
+ * @note: if server is already active (running) return with success
+*/
+int SetActive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleList)
+{
+    // Find the server and set it to active
+    pthread_mutex_lock(&serverHandleList->severListMutex);
+    for(int i = 0; i < MAX_SERVERS; i++)
+    {
+        if(serverHandleList->Active[i] == 1 && serverHandleList->serverList[i].ServerID == serverID)
+        {
+            serverHandleList->Running[i] = 1;
+            pthread_mutex_unlock(&serverHandleList->severListMutex);
+            printf(GRN "[+]SetActive: Set server %lu (%s:%d) to active\n" reset, serverHandleList->serverList[i].ServerID, serverHandleList->serverList[i].sServerIP, serverHandleList->serverList[i].sServerPort);
+            fprintf(logs, "[+]SetActive: Set server %lu (%s:%d) to active\n", serverHandleList->serverList[i].ServerID, serverHandleList->serverList[i].sServerIP, serverHandleList->serverList[i].sServerPort);
+            return 0;
+        }
+    }
+    pthread_mutex_unlock(&serverHandleList->severListMutex);
+    printf(RED "[-]SetActive: Server-%lu not in ServerHandleList \n" reset, serverID);
+    fprintf(logs, "[-]SetActive: Server-%lu not in ServerHandleList \n", serverID);
+    return -1;
+}
+/**
  * @brief Assigns backup servers to a server with given ID
  * @param serverHandleList: The server handle list object
  * @param serverID: The server ID
@@ -234,4 +261,46 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
     fprintf(logs, " }\n");
     
     return 0;
+}
+
+/**
+ * @brief Checks if a server is active
+ * @param serverID: The server ID
+ * @param serverHandleList: The server handle list object
+ * @return: 1 if active, 0 if inactive, -1 on failure
+ * @note: if server is not present in the server handle list, return with failure
+*/
+int IsActive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleList)
+{
+    pthread_mutex_lock(&serverHandleList->severListMutex);
+    // Find the server and return if it is active
+    for(int i = 0; i < MAX_SERVERS; i++)
+    {
+        if(serverHandleList->Active[i] == 1 && serverHandleList->serverList[i].ServerID == serverID)
+        {
+            pthread_mutex_unlock(&serverHandleList->severListMutex);
+            return serverHandleList->Running[i];
+        }
+    }
+    pthread_mutex_unlock(&serverHandleList->severListMutex);
+    return -1;
+}
+
+/**
+ * @brief Get an running backup server from the backup server handle list
+ * @param serverHandleList: The server handle list object
+ * @param BackUpList: The backup server handle list object
+ * @return: First Running backup server handle object or NULL if no backup server is running
+ * @note: If no backup server is running, return NULL
+*/
+SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_LIST_STRUCT *BackUpList)
+{
+    for(int i = 0; i < BACKUP_SERVERS; i++)
+    {
+        if(IsActive(BackUpList->serverList[i].ServerID, serverHandleList))
+        {
+            return &BackUpList->serverList[i];
+        }
+    }
+    return NULL;
 }
