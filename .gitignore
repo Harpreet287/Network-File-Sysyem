@@ -1,2 +1,16 @@
 test.c
 test
+Client/Client
+Client/Clientlog.log
+Client/DirectConnFunc
+Naming Sever/NS
+Naming Sever/NSlog.log
+Naming Sever/obj/Client_Handle.o
+Naming Sever/obj/LRU.o
+Naming Sever/obj/NS.o
+Naming Sever/obj/Server_Handle.o
+Naming Sever/obj/Trie.o
+Storage Server/SSlog.log
+Storage Server/StorageServer
+Storage Server/obj/SS.o
+Storage Server/obj/Trie.o

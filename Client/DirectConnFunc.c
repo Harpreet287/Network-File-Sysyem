@@ -14,15 +14,14 @@
 
 void Rcmd(char* arg, int ServerSockfd)
 {
-    if(CheckNull(arg, ErrorMsg("Invalid Argument\nUSAGE: READ <Path>", CMD_ERROR_INVALID_ARGUMENTS)))
+    if(CheckNull(arg, ErrorMsg("NULL Argument\nUSAGE: READ <Path>", CMD_ERROR_INVALID_ARGUMENTS)))
     {
         fprintf(Clientlog, "[-]Rcmd: Invalid Argument [Time Stamp: %f]\n", GetCurrTime(Clock));
         return;
     }
 
     arg = strtok(arg, " \t\n");
-
-    if(CheckNull(strtok(NULL, " \t\n"), ErrorMsg("Invalid Argument Count\nUSAGE: READ <Path>", CMD_ERROR_INVALID_ARGUMENTS_COUNT)))
+    if(strtok(NULL, " \t\n") != NULL)
     {
         fprintf(Clientlog, "[-]Rcmd: Invalid Argument Count [Time Stamp: %f]\n", GetCurrTime(Clock));
         return;
@@ -31,7 +30,8 @@ void Rcmd(char* arg, int ServerSockfd)
     char* path = arg;
     fprintf(Clientlog, "[+]Rcmd: Reading Path %s [Time Stamp: %f]\n", path, GetCurrTime(Clock));
 
-    REQUEST_STRUCT* req = (REQUEST_STRUCT*)(sizeof(REQUEST_STRUCT));
+    REQUEST_STRUCT req_struct;
+    REQUEST_STRUCT* req = &req_struct;
     memset(req, 0, sizeof(REQUEST_STRUCT));
 
     req->iRequestOperation = CMD_READ;
@@ -44,13 +44,14 @@ void Rcmd(char* arg, int ServerSockfd)
     if(iBytesSent != sizeof(REQUEST_STRUCT))
     {
         char* Msg = ErrorMsg("Failed to send request to server", CMD_ERROR_SEND_FAILED);
-        printf(RED"%s"reset, Msg);
+        printf(RED"%s\n"reset, Msg);
         fprintf(Clientlog, "[-]Rcmd: Failed to send request [Time Stamp: %f]\n", GetCurrTime(Clock));
         free(Msg);
         return;
     }
     
-    RESPONSE_STRUCT* res = (RESPONSE_STRUCT*)(sizeof(RESPONSE_STRUCT));
+    RESPONSE_STRUCT res_struct;
+    RESPONSE_STRUCT* res = &res_struct;
     memset(res, 0, sizeof(RESPONSE_STRUCT));
 
     int iBytesRecv = recv(ServerSockfd, res, sizeof(RESPONSE_STRUCT), 0);
@@ -65,7 +66,7 @@ void Rcmd(char* arg, int ServerSockfd)
     if(res->iResponseErrorCode != CMD_ERROR_SUCCESS)
     {
         char* Msg = ErrorMsg("Failed to read file", res->iResponseErrorCode);
-        printf(RED"%s"reset, Msg);
+        printf(RED"%s\n"reset, Msg);
         fprintf(Clientlog, "[-]Rcmd: Failed to read file [Time Stamp: %f]\n", GetCurrTime(Clock));
         free(Msg);
         return;
@@ -121,7 +122,7 @@ void Rcmd(char* arg, int ServerSockfd)
     if(iBytesSent != sizeof(REQUEST_STRUCT))
     {
         char* Msg = ErrorMsg("Failed to send request to storage server", CMD_ERROR_SEND_FAILED);
-        printf(RED"%s"reset, Msg);
+        printf(RED"%s\n"reset, Msg);
         fprintf(Clientlog, "[-]Rcmd: Failed to send request to storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
         free(Msg);
         return;
