@@ -26,6 +26,7 @@ SERVER_HANDLE_LIST_STRUCT* serverHandleList;
 FILE *logs;
 CLOCK* Clock;
 TrieNode* MountTrie;
+pthread_mutex_t MountTrieLock;
 LRUCache* MountCache;
 sem_t serverStartSem;
 
@@ -60,24 +61,17 @@ SERVER_HANDLE_STRUCT* ResolvePath(char* path)
 /**
  * @brief Checks if the given socket is connected( Readable )
  * @param sockfd: The socket to check
- * @return: 1 if the socket is connected, 0 otherwise
+ * @return: 1 if the socket is connected, 0 if the socket is disconnected, -1 on error
  * @note: This function is non-blocking
 */
 int IsSocketConnected(int sockfd)
 {
-    fd_set fd;
-    FD_ZERO(&fd);
-    FD_SET(sockfd, &fd);
-    struct timeval tv = {0};
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int iSelectStatus = select(sockfd + 1, &fd, NULL, NULL, &tv);
-    if(CheckError(iSelectStatus, "[-]IsSocketConnected: Error in select"))
-    {
-        fprintf(logs, "[-]IsSocketConnected: Error in select\n");
-        return 0;
-    }
-    return FD_ISSET(sockfd, &fd);
+    // Use recv with MSG_PEEK to check if the socket is connected
+    char buff[1];
+    int iRecvStatus = recv(sockfd, buff, sizeof(buff), MSG_PEEK);
+    if(CheckError(iRecvStatus, "[-]IsSocketConnected: Error in receiving data from socket")) return -1;
+    else if(iRecvStatus == 0) return 0;
+    return 1;
 }
 
 /**
@@ -142,7 +136,7 @@ void* Client_Acceptor_Thread()
 
     // Create a socket
     int iServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(CheckError(iServerSocket, "[-]Client Acceptor Thread: Error in creating socket")) return NULL;
+    if(CheckError(iServerSocket, "[-]Client Acceptor Thread: Error in creating socket")) exit(EXIT_FAILURE);
 
     // Specify an address for the socket
     struct sockaddr_in server_address;
@@ -153,11 +147,11 @@ void* Client_Acceptor_Thread()
 
     // Bind the socket to our specified IP and port
     int iBindStatus = bind(iServerSocket, (struct sockaddr *) &server_address, sizeof(server_address));
-    if(CheckError(iBindStatus, "[-]Client Acceptor Thread: Error in binding socket to specified IP and port"))return NULL;
+    if(CheckError(iBindStatus, "[-]Client Acceptor Thread: Error in binding socket to specified IP and port"))exit(EXIT_FAILURE);
 
     // Listen for connections
     int iListenStatus = listen(iServerSocket, MAX_QUEUE_SIZE);
-    if(CheckError(iListenStatus, "[-]Client Acceptor Thread: Error in listening for connections"))return NULL;
+    if(CheckError(iListenStatus, "[-]Client Acceptor Thread: Error in listening for connections"))exit(EXIT_FAILURE);
 
     printf(GRN"[+]Client Acceptor Thread: Listening for connections\n"reset);
     fprintf(logs, "[+]Client Acceptor Thread: Listening for connections [Time Stamp: %f]\n", GetCurrTime(Clock));
@@ -226,7 +220,8 @@ void* Client_Handler_Thread(void* clientHandle)
     }
 
     // Set Up request listener for the client
-    while(IsSocketConnected(client->iClientSocket))
+    int ConnStatus;
+    while(ConnStatus = IsSocketConnected(client->iClientSocket))
     {
         // Receive the request from the client
         REQUEST_STRUCT request;
@@ -302,9 +297,16 @@ void* Client_Handler_Thread(void* clientHandle)
 
         fprintf(logs, "[+]Client Handler Thread: Sent response {%s} to client %lu\n",response.sResponseData, client->ClientID);        
     }
+    if(CheckError(ConnStatus, "[-]Client Handler Thread: Error in checking if socket is connected"))
+    {
+        fprintf(logs, "[-]Client Handler Thread: Error in checking if socket is connected\n");
+    }
+    else
+    {
+        printf(URED"[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
+        fprintf(logs, "[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n", client->ClientID, client->sClientIP, client->sClientPort);
+    }
 
-    printf(URED"[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
-    fprintf(logs, "[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n", client->ClientID, client->sClientIP, client->sClientPort);
     // Close the socket
     RemoveClient(ClientID, clientHandleList);
     close(client->iClientSocket);
@@ -320,7 +322,7 @@ void* Storage_Server_Acceptor_Thread()
 
     // Create a socket
     int iServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(CheckError(iServerSocket, "[-]Storage Server Acceptor Thread: Error in creating socket")) return NULL;
+    if(CheckError(iServerSocket, "[-]Storage Server Acceptor Thread: Error in creating socket")) exit(EXIT_FAILURE);
 
     // Specify an address for the socket
     struct sockaddr_in server_address;
@@ -331,11 +333,11 @@ void* Storage_Server_Acceptor_Thread()
 
     // Bind the socket to our specified IP and port
     int iBindStatus = bind(iServerSocket, (struct sockaddr *) &server_address, sizeof(server_address));
-    if(CheckError(iBindStatus, "[-]Storage Server Acceptor Thread: Error in binding socket to specified IP and port"))return NULL;
+    if(CheckError(iBindStatus, "[-]Storage Server Acceptor Thread: Error in binding socket to specified IP and port")) exit(EXIT_FAILURE);
 
     // Listen for connections
     int iListenStatus = listen(iServerSocket, MAX_QUEUE_SIZE);
-    if(CheckError(iListenStatus, "[-]Storage Server Acceptor Thread: Error in listening for connections"))return NULL;
+    if(CheckError(iListenStatus, "[-]Storage Server Acceptor Thread: Error in listening for connections"))exit(EXIT_FAILURE);
 
     printf(GRN"[+]Storage Server Acceptor Thread: Listening for connections\n"reset);
     fprintf(logs, "[+]Storage Server Acceptor Thread: Listening for connections [Time Stamp: %f]\n", GetCurrTime(Clock));
@@ -401,24 +403,31 @@ void* Storage_Server_Handler_Thread(void* storageServerHandle)
     }
 
     // Unpack the Server Init Packet
-    strncpy(server->sServerIP, serverInitPacket.sServerIP, IP_LENGTH);
     server->sServerPort_Client = serverInitPacket.sServerPort_Client;
     server->sServerPort_NServer = serverInitPacket.sServerPort_NServer;
 
     // Extract indivisual path from the mount paths string (tokenize on \n) and Insert into the mount trie
-    char *token = strtok(serverInitPacket.MountPaths, "\n");
-    while(token != NULL)
+    char *token = serverInitPacket.MountPaths;
+    while(strlen(token))
     { 
-        token = strtok(NULL, "/");             // Remove the the first token in the path [e.g. (server name/~) , (./~) , (mount/~) , etc.]
-        int err_code = Insert_Path(MountTrie, token, server);
+        char* path_tok = __strtok_r(token, "\n", &token);
+        // Removing the the first token in the path [e.g. (server name/~) , (./~) , (mount/~) , etc.] 
+        // Is handled by the Insert_Path function          
+        int err_code = Insert_Path(MountTrie, path_tok, server);
         if(CheckError(err_code, "[-]Storage Server Handler Thread: Error in inserting path into mount trie"))
         {
+            fprintf(logs, "[-]Storage Server Handler Thread: Error in inserting path into mount trie\n");
             RemoveServer(GetServerID(server), serverHandleList);
             close(server->sSocket_Write);
             return NULL;
         }
-        token = strtok(NULL, "\n");
     }
+
+    printf(GRN"[+]Storage Server Handler Thread: Server %lu (%s:%d) Paths Inserted\n"reset, server->ServerID, server->sServerIP, server->sServerPort);
+    fprintf(logs, "[+]Storage Server Handler Thread: Server %lu (%s:%d) Paths Inserted [Time Stamp: %f]\n", server->ServerID, server->sServerIP, server->sServerPort, GetCurrTime(Clock));
+
+    printf(BHWHT"{Current Mount Trie}\n"reset);
+    Print_Trie(MountTrie, 0);
 
     // Set Up the Backup Servers for the server
     int err_code = AssignBackupServer(serverHandleList, server->ServerID);  
@@ -522,7 +531,17 @@ void exit_handler()
 {
     printf(BRED"[-]Server Exiting\n"reset);
     fprintf(logs, "[-]Server Exiting [Time Stamp: %f]\n", GetCurrTime(Clock));
+    for(int i = 0; i < clientHandleList->iClientCount; i++)
+    {
+        close(clientHandleList->clientList[i].iClientSocket);
+    }
+    for(int i = 0; i < serverHandleList->iServerCount; i++)
+    {
+        close(serverHandleList->serverList[i].sSocket_Read);
+        close(serverHandleList->serverList[i].sSocket_Write);
+    }
     Delete_Trie(MountTrie);
+    pthread_mutex_destroy(&MountTrieLock);
     freeCache(MountCache);
     fclose(logs);
 }
@@ -533,6 +552,9 @@ int main(int argc, char *argv[])
     // Open the logs file
     logs = fopen("NSlog.log", "w");
 
+    // Register the exit handler
+    atexit(exit_handler);
+    
     // Initialize the Naming Server Global Variables
     clientHandleList = InitializeClientHandleList();
     serverHandleList = InitializeServerHandleList();
@@ -540,7 +562,8 @@ int main(int argc, char *argv[])
 
     // Initialize the Mount Paths Trie
     MountTrie = Init_Trie();
-    Insert_Path(MountTrie, "mount", NULL);
+    pthread_mutex_init(&MountTrieLock, NULL);
+    strcpy(MountTrie->path_token, "Mount");
 
     // Initialize the LRU Cache
     MountCache = createCache();
@@ -556,8 +579,6 @@ int main(int argc, char *argv[])
     printf(BGRN"[+]Naming Server Initialized\n"reset);
     fprintf(logs, "[+]Naming Server Initialized [Time Stamp: %f]\n", GetCurrTime(Clock));
 
-    // Register the exit handler
-    atexit(exit_handler);
 
     // Create a thread to accept client connections
     pthread_t tClientAcceptorThread;

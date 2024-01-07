@@ -22,7 +22,7 @@ typedef struct LRUCache {
 //Global
 LRUCache* createCache(); 
 void put(LRUCache* cache, const char* key, void* value); 
-const void* get(LRUCache* cache, const char* key); 
+void* get(LRUCache* cache, const char* key); 
 void freeCache(LRUCache* cache);
 void printCache(LRUCache* cache); 
 void flushCache(LRUCache* cache);

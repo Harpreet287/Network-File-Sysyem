@@ -157,7 +157,7 @@ void put(LRUCache *cache, const char *key, void *value)
  * @return: The value on success, NULL on failure
  * @note: Moves the accessed node to the head
 */
-const void *get(LRUCache *cache, const char *key)
+void *get(LRUCache *cache, const char *key)
 {
     int index = hashFunction(key) % CACHE_SIZE;
     Node *node = cache->hashmap[index];

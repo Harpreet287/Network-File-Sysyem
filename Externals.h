@@ -76,7 +76,6 @@ typedef struct RESPONSE_STRUCT
 // Storage-Server Init Struct
 typedef struct STORAGE_SERVER_INIT_STRUCT
 {
-    char sServerIP[IP_LENGTH];
     int sServerPort_Client;  // Port on which the storage server will listen for client
     int sServerPort_NServer; // Port on which the storage server will listen for NServer
 

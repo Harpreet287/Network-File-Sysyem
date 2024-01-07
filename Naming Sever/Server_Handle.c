@@ -60,8 +60,8 @@ int AddServer(SERVER_HANDLE_STRUCT *serverHandle, SERVER_HANDLE_LIST_STRUCT *ser
     {
         if (serverHandleList->Active[i] == 0)
         {
-            serverHandleList->serverList[i] = *serverHandle;
             serverHandle->ServerID = GetServerID(serverHandle);
+            serverHandleList->serverList[i] = *serverHandle;
             serverHandleList->Active[i] = 1;
             serverHandleList->Running[i] = 1;
             serverHandleList->iServerCount++;
@@ -89,7 +89,7 @@ int AddServer(SERVER_HANDLE_STRUCT *serverHandle, SERVER_HANDLE_LIST_STRUCT *ser
     fprintf(logs, "[-]AddServer: Error adding server %lu (%s:%d)\n", serverHandle->ServerID, serverHandle->sServerIP, serverHandle->sServerPort);
     return -1;
 }
-/**
+/**'
  * @brief Removes a server from the Server Handle List
  * @param serverID: The server ID
  * @param serverHandleList: The server handle list object
@@ -101,7 +101,7 @@ int RemoveServer(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandle
     // Find the server
     for(int i = 0; i < MAX_SERVERS; i++)
     {
-        if(serverHandleList->Active[i] == 1 && serverHandleList->serverList[i].ServerID == serverID)
+        if(serverHandleList->Running[i] == 1 && serverHandleList->serverList[i].ServerID == serverID)
         {
             serverHandleList->Active[i] = 0;
             serverHandleList->Running[i] = 0;
@@ -181,7 +181,7 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
     SERVER_HANDLE_STRUCT *serverHandle = NULL;
     for(int i = 0; i < MAX_SERVERS; i++)
     {
-        if(serverHandleList->Active[i] == 1 && serverHandleList->serverList[i].ServerID == serverID)
+        if( (serverHandleList->Active[i] == 1) && (serverHandleList->serverList[i].ServerID == serverID) )
         {
             serverHandle = &serverHandleList->serverList[i];
             break;
@@ -201,7 +201,8 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
     }
 
     int BackUpCount = 0;
-    for(int i = 0; i < MAX_SERVERS; i++)
+    int itt = 0;
+    while(BackUpCount < BACKUP_SERVERS && itt < MAX_SERVERS)
     {
         // assign the backup server with the least number of active backups
         SERVER_HANDLE_STRUCT *backupServer = NULL;
@@ -237,6 +238,7 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
 
         }
 
+        itt++;
     }
 
     if(BackUpCount != BACKUP_SERVERS)
@@ -246,19 +248,21 @@ int AssignBackupServer(SERVER_HANDLE_LIST_STRUCT *serverHandleList, unsigned lon
         return -1;
     }
 
-    printf(GRN "[+]AssignBackupServer: Assigned backup servers for server-%lu (%s:%d) {" reset, serverHandle->ServerID, serverHandle->sServerIP, serverHandle->sServerPort);
+    printf(GRN "[+]AssignBackupServer: Assigned backup servers for server-%lu (%s:%d)" reset, serverHandle->ServerID, serverHandle->sServerIP, serverHandle->sServerPort);
+    printf("\nBackups { ");
     for(int i = 0; i < BackUpCount; i++)
     {
-        printf("%lu ", serverHandle->backupServers[i]->ServerID);
+        printf("%d:(%lu), ", i+1, serverHandle->backupServers[i]->ServerID);
     }
     printf(" }\n");
 
-    fprintf(logs, "[+]AssignBackupServer: Assigned backup servers for server-%lu (%s:%d) {", serverHandle->ServerID, serverHandle->sServerIP, serverHandle->sServerPort);
+    fprintf(logs, "[+]AssignBackupServer: Assigned backup servers for server-%lu (%s:%d)", serverHandle->ServerID, serverHandle->sServerIP, serverHandle->sServerPort);
+    fprintf(logs, "\nBackups { ");
     for(int i = 0; i < BackUpCount; i++)
     {
-        fprintf(logs, "%lu ", serverHandle->backupServers[i]->ServerID);
+        fprintf(logs, "%d:(%lu), ", i+1, serverHandle->backupServers[i]->ServerID);
     }
-    fprintf(logs, " }\n");
+    fprintf(logs, " }\n"); 
     
     return 0;
 }
@@ -293,13 +297,13 @@ int IsActive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleList
  * @return: First Running backup server handle object or NULL if no backup server is running
  * @note: If no backup server is running, return NULL
 */
-SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_LIST_STRUCT *BackUpList)
+SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_STRUCT * BackUpList[])
 {
     for(int i = 0; i < BACKUP_SERVERS; i++)
     {
-        if(IsActive(BackUpList->serverList[i].ServerID, serverHandleList))
+        if(IsActive(BackUpList[i]->ServerID, serverHandleList))
         {
-            return &BackUpList->serverList[i];
+            return BackUpList[i];
         }
     }
     return NULL;

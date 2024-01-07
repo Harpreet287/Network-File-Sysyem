@@ -6,5 +6,6 @@
 #define CMD_ERROR_INVALID_OPERATION 202  // Invalid operation
 #define CMD_ERROR_SERVER_UNAVAILABLE 203 // Server unavailable
 #define CMD_ERROR_BACKUP_UNAVAILABLE 204 // Backup unavailable
+#define ERROR_GETTING_MOUNT_PATHS 205    // Error getting mount paths
 
 #endif // __ERRORCODES_H

@@ -6,7 +6,7 @@
 #include <pthread.h>
 
 #define MAX_SERVERS 5
-#define BACKUP_SERVERS 2
+#define BACKUP_SERVERS 0
 
 typedef struct SERVER_HANDLE_STRUCT
 {
@@ -49,6 +49,6 @@ unsigned long GetServerID(SERVER_HANDLE_STRUCT *serverHandle);
 
 int IsActive(unsigned long serverID, SERVER_HANDLE_LIST_STRUCT *serverHandleList);
 
-SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_LIST_STRUCT *BackUpList);
+SERVER_HANDLE_STRUCT* GetActiveBackUp(SERVER_HANDLE_LIST_STRUCT *serverHandleList, SERVER_HANDLE_STRUCT* BackUpList[]);
 
 #endif

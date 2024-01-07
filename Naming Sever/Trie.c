@@ -37,29 +37,32 @@ int Recursive_Delete(TrieNode *root) // deletes the subtree for the given node
     free(root);
     return 0;
 }
-char *Get_Directory_Tree_Full(TrieNode *root, char *cur_dir, int lvl) // returns a string with the full tree path
+int Get_Directory_Tree_Full(TrieNode *root, char *cur_dir, int lvl) // returns a string with the full tree path
 {
     if (root == NULL)
-        return NULL;
+        return -1;
     for (int i = 0; i < lvl; i++)
     {
-        cur_dir = realloc(cur_dir, strlen(cur_dir) + 2);
-        strcat(cur_dir, "-");
+        if (i%2 == 0 || i == 0)
+            snprintf(cur_dir, MAX_BUFFER_SIZE, "%s|", cur_dir);
+        else
+            snprintf(cur_dir, MAX_BUFFER_SIZE, "%s  ", cur_dir);
     }
-    cur_dir = realloc(cur_dir, strlen(cur_dir) + strlen(root->path_token) + 2);
-    strcat(cur_dir, root->path_token);
-    strcat(cur_dir, "\n");
-    // printf("%s (Server Handle: %p)\n",root->path_token,root->Server_Handle);
+
+    int err = snprintf(cur_dir, MAX_BUFFER_SIZE, "%s|-%s:(Server Handle: %p)\n", cur_dir, root->path_token, root->Server_Handle);
+    if (err < 0)
+        return -1;
+
     for (int i = 0; i < MAX_CHILDREN; i++)
     {
         if (root->children[i] != NULL)
         {
-            cur_dir = realloc(cur_dir, strlen(cur_dir) + 2);
-            strcat(cur_dir, "|");
-            Get_Directory_Tree_Full(root->children[i], cur_dir, lvl + 1);
+            err = Get_Directory_Tree_Full(root->children[i], cur_dir, lvl + 1);
+            if (err < 0)
+                return -1;
         }
     }
-    return cur_dir;
+    return 0;
 }
 
 // global functions
@@ -86,6 +89,8 @@ int Insert_Path(TrieNode *root, char *path, void *Server_Handle)
 
     TrieNode *curr = root;
     char *path_token = strtok(path, "/");
+    // Ignore the first token as it is CWD for Storage Server
+    path_token = strtok(NULL, "/");
 
     while (path_token != NULL)
     {
@@ -100,6 +105,8 @@ int Insert_Path(TrieNode *root, char *path, void *Server_Handle)
         if (curr->children[index] == NULL)
         {
             curr->children[index] = getNode();
+            if (curr->children[index] == NULL)
+                return -1;
             strcpy(curr->children[index]->path_token, path_token);
             curr->children[index]->Server_Handle = Server_Handle;
         }
@@ -193,19 +200,27 @@ int Delete_Trie(TrieNode *root) // deletes the trie
 // helper global functions
 /**
  * @brief Prints the trie
+ * @param root: The root node of the trie
+ * @param lvl: The level of the node in the trie
+ * @note: Prints the trie recursively
  */
 void Print_Trie(TrieNode *root, int lvl) // prints the trie
 {
     if (root == NULL)
         return;
     for (int i = 0; i < lvl; i++)
-        printf("-");
-    printf("%s (Server Handle: %p)\n", root->path_token, root->Server_Handle);
+    {
+        if (i%2 == 0)
+            printf("|");
+        else
+            printf(" ");
+    }
+    unsigned long server_id = root->Server_Handle == NULL ? -1 : ((SERVER_HANDLE_STRUCT*)root->Server_Handle)->ServerID;
+    printf("|-%s (Server ID: %lu)\n", root->path_token, server_id);
     for (int i = 0; i < MAX_CHILDREN; i++)
     {
         if (root->children[i] != NULL)
         {
-            printf("|");
             Print_Trie(root->children[i], lvl + 1);
         }
     }
@@ -215,7 +230,8 @@ void Print_Trie(TrieNode *root, int lvl) // prints the trie
  * @brief Returns a string with subtree path for a given path
  * @param root: The root node of the trie
  * @param path: The path for which the subtree is to be returned
- * @return: A string with subtree path for a given path
+ * @return: A string with subtree path for a given path or NULL if Error
+ * @note: The string returned must be freed by the caller
  */
 char *Get_Directory_Tree(TrieNode *root, char *path) // returns a string with subtree path for a given path
 {
@@ -238,6 +254,16 @@ char *Get_Directory_Tree(TrieNode *root, char *path) // returns a string with su
     free(path_cpy);
 
     // Recursively get the subtree path
+    char *subtree_path = (char *)calloc(MAX_BUFFER_SIZE, sizeof(char));
 
-    return Get_Directory_Tree_Full(curr, (char *)calloc(1, sizeof(char)), 0);
+    int err = Get_Directory_Tree_Full(curr,subtree_path , 0);
+    if ( err == -1)
+    {
+        free(subtree_path);
+        return NULL;
+    }  
+    else if(err == 0)
+    {
+        return subtree_path;
+    }  
 }

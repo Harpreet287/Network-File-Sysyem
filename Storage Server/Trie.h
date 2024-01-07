@@ -34,12 +34,12 @@ typedef Trie_Node Trie;
 
 // Function prototypes
 Trie* trie_init(); // Initialize the trie on startup in the cwd for all paths in cwd
-int trie_insert(Trie* File_Trie, char* path); // Insert a path into the trie
-Reader_Writer_Lock* trie_get_path_lock(Trie* File_Trie, char* path); // Get correspomding lock for a path in trie
-int trie_delete(Trie* File_Trie, char *path); // Delete a path from the trie (deletes all children path)
-int trie_destroy(Trie* File_Trie); // Destroy the trie on shutdown
+int trie_insert(Trie* file_trie, char* path); // Insert a path into the trie
+Reader_Writer_Lock* trie_get_path_lock(Trie* file_trie, char* path); // Get correspomding lock for a path in trie
+int trie_delete(Trie* file_trie, char *path); // Delete a path from the trie (deletes all children path)
+int trie_destroy(Trie* file_trie); // Destroy the trie on shutdown
 
-int trie_print(Trie* File_Trie, char* buffer, int level); // Print the trie
-
+int trie_print(Trie* file_trie, char* buffer, int level); // Print the trie
+int trie_paths(Trie* file_trie, char* buffer, char* root); // Get all paths in the trie under root-path
 
 #endif // __TRIE_H__
