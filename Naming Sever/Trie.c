@@ -239,7 +239,10 @@ char *Get_Directory_Tree(TrieNode *root, char *path) // returns a string with su
         return NULL;
     // itterate to the node for the given path
     TrieNode *curr = root;
-    char *path_cpy = (char *)calloc(strlen(path) + 1, sizeof(char));
+
+    char *path_cpy = (char *) malloc(strlen(path) + 1);
+    memset(path_cpy, 0, strlen(path) + 1);
+
     strcpy(path_cpy, path);
     char *path_token = strtok(path_cpy, "/");
     path_token = strtok(NULL, "/");
@@ -247,7 +250,10 @@ char *Get_Directory_Tree(TrieNode *root, char *path) // returns a string with su
     {
         int index = Hash(path_token);
         if (curr->children[index] == NULL)
-            return NULL;
+        {
+            strcpy(path_cpy, "Invalid Path");
+            return path_cpy;
+        }
         curr = curr->children[index];
         path_token = strtok(NULL, "/");
     }

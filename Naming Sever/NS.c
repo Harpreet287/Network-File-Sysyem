@@ -162,7 +162,11 @@ void* Client_Acceptor_Thread()
     // Accept a connection
     while(iClientSocket = accept(iServerSocket, (struct sockaddr *) &client_address, &iClientSize))
     {
-        if(CheckError(iClientSocket, "[-]Client Acceptor Thread: Error in accepting connection")) continue;
+        if(CheckError(iClientSocket, "[-]Client Acceptor Thread: Error in accepting connection"))
+        {
+            fprintf(logs, "[-]Client Acceptor Thread: Error in accepting connection [Time Stamp: %f]\n", GetCurrTime(Clock));
+            continue;
+        }
 
         // Store the client IP and Port in Client Handle Struct
         CLIENT_HANDLE_STRUCT clientHandle;
@@ -173,6 +177,7 @@ void* Client_Acceptor_Thread()
         // Add the client to the client list
         if(CheckError(AddClient(&clientHandle, clientHandleList),"[-]Client Acceptor Thread: Error in adding client to client list"))
         {
+            fprintf(logs, "[-]Client Acceptor Thread: Error in adding client to client list [Time Stamp: %f]\n", GetCurrTime(Clock));
             close(iClientSocket);
             continue;
         }
@@ -180,7 +185,12 @@ void* Client_Acceptor_Thread()
         // Create a thread to handle the client
         pthread_t tClientHandlerThread;
         int iThreadStatus = pthread_create(&tClientHandlerThread, NULL, Client_Handler_Thread, (void *) &clientHandle);
-        if(CheckError(iThreadStatus, "[-]Client Acceptor Thread: Error in creating thread")) continue;  
+        if(CheckError(iThreadStatus, "[-]Client Acceptor Thread: Error in creating thread"))
+        {
+            fprintf(logs, "[-]Client Acceptor Thread: Error in creating thread [Time Stamp: %f]\n", GetCurrTime(Clock));
+            close(iClientSocket);
+            continue;
+        }  
     } 
 
     return NULL;
@@ -190,7 +200,7 @@ void* Client_Handler_Thread(void* clientHandle)
 {
     CLIENT_HANDLE_STRUCT *client = (CLIENT_HANDLE_STRUCT *) clientHandle;
     printf(UGRN"[+]Client Handler Thread Initialized for Client %lu (%s:%d)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
-    fprintf(logs, "[+]Client Handler Thread Initialized for Client %lu (%s:%d)\n", client->ClientID, client->sClientIP, client->sClientPort);
+    fprintf(logs, "[+]Client Handler Thread Initialized for Client %lu (%s:%d) [Time Stamp: %f]\n", client->ClientID, client->sClientIP, client->sClientPort, GetCurrTime(Clock));
 
     /*
     // Send data to the client
@@ -213,7 +223,7 @@ void* Client_Handler_Thread(void* clientHandle)
     int iSendStatus = send(client->iClientSocket, &ClientID, sizeof(unsigned long), 0);
     if(CheckError(iSendStatus, "[-]Client Handler Thread: Error in sending data to client"))
     {
-        fprintf(logs, "[-]Client Handler Thread: Error in sending data to client\n");
+        fprintf(logs, "[-]Client Handler Thread: Error in sending data to client [Time Stamp: %f]\n", GetCurrTime(Clock));
         RemoveClient(ClientID, clientHandleList);
         close(client->iClientSocket);
         return NULL;
@@ -229,7 +239,7 @@ void* Client_Handler_Thread(void* clientHandle)
         int iRecvStatus = recv(client->iClientSocket, &request, sizeof(request), 0);
         if(CheckError(iRecvStatus, "[-]Client Handler Thread: Error in receiving data from client"))
         {
-            fprintf(logs, "[-]Client Handler Thread: Error in receiving data from client\n");
+            fprintf(logs, "[-]Client Handler Thread: Error in receiving data from client [Time Stamp: %f]\n", GetCurrTime(Clock));
             RemoveClient(ClientID, clientHandleList);
             close(client->iClientSocket);
             return NULL;
@@ -247,13 +257,15 @@ void* Client_Handler_Thread(void* clientHandle)
         {
             case CMD_READ:
             {
-                fprintf(logs, "[+]Client Handler Thread: Client %lu requested to read file %s\n", client->ClientID, request.sRequestPath);
+                printf(GRN"[+]Client Handler Thread: Client %lu requested to read file %s\n"reset, client->ClientID, request.sRequestPath);
+                fprintf(logs, "[+]Client Handler Thread: Client %lu requested to read file %s [Time Stamp: %f]\n", client->ClientID, request.sRequestPath, GetCurrTime(Clock));
                 // Do a path resolution
                 SERVER_HANDLE_STRUCT* server = ResolvePath(request.sRequestPath);
 
                 if(server == NULL)
                 {
-                    fprintf(logs, "[-]Client Handler Thread: Error in resolving path for client %lu\n", client->ClientID);
+                    printf(RED"[-]Client Handler Thread: Error in resolving path for client %lu\n"reset, client->ClientID);
+                    fprintf(logs, "[-]Client Handler Thread: Error in resolving path for client %lu [Time Stamp: %f]\n", client->ClientID, GetCurrTime(Clock));
                     response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
                     break;
                 }
@@ -274,15 +286,49 @@ void* Client_Handler_Thread(void* clientHandle)
                     fprintf(logs, "[+]Client Handler Thread: Switched to backup server %lu (%s:%d) for client %lu\n", server->ServerID, server->sServerIP, server->sServerPort_Client, client->ClientID);
                 }
 
+                printf(GRN"[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n"reset, request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
                 fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
                 // Populate the response struct with Server IP and Port
                 snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);
                 response.iResponseServerID = server->ServerID;
                 break;
             }
+            case CMD_LIST:
+            {
+                printf(GRN"[+]Client Handler Thread: Client %lu requested to list directory %s\n"reset, client->ClientID, request.sRequestPath);
+                fprintf(logs, "[+]Client Handler Thread: Client %lu requested to list directory %s\n", client->ClientID, request.sRequestPath);
+                    
+                // Populate the response struct with paths under requested path
+                char* paths = Get_Directory_Tree(MountTrie, request.sRequestPath);
+                if(paths == NULL)
+                {
+                    printf(RED"[-]Client Handler Thread: Error in getting directory tree for client %lu\n"reset, client->ClientID);
+                    fprintf(logs, "[-]Client Handler Thread: Error in getting directory tree for client %lu\n", client->ClientID);
+                    response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                    response.iResponseErrorCode = ERROR_GETTING_MOUNT_PATHS;
+                    break;
+                }
+                else if(strcmp(paths, "Invalid Path") == 0)
+                {
+                    free(paths);
+                    printf(RED"[-]Client Handler Thread: Invalid Path %s for client %lu\n"reset, request.sRequestPath, client->ClientID);
+                    fprintf(logs, "[-]Client Handler Thread: Invalid Path %s for client %lu\n", request.sRequestPath, client->ClientID);
+                    response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
+                    response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                    break;
+                }
+                
+                strncpy(response.sResponseData, paths, MAX_BUFFER_SIZE);
+                response.iResponseFlags = RESPONSE_FLAG_SUCCESS;
+                response.iResponseErrorCode = CMD_ERROR_SUCCESS;
+
+                free(paths);
+                break;
+            }
             default:
             {
                 response.iResponseErrorCode = CMD_ERROR_INVALID_OPERATION;
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
                 break;
             }
         }
@@ -291,15 +337,18 @@ void* Client_Handler_Thread(void* clientHandle)
         int iSendStatus = send(client->iClientSocket, &response, sizeof(response), 0);
         if(iSendStatus != sizeof(response))
         {
+            printf(RED"[-]Client Handler Thread: Error in sending response to client %lu\n"reset, client->ClientID);
             fprintf(logs, "[-]Client Handler Thread: Error in sending response to client %lu\n", client->ClientID);
             break;
         }
 
+        printf(GRN"[+]Client Handler Thread: Sent response to client %lu\n"reset, client->ClientID);
         fprintf(logs, "[+]Client Handler Thread: Sent response {%s} to client %lu\n",response.sResponseData, client->ClientID);        
     }
     if(CheckError(ConnStatus, "[-]Client Handler Thread: Error in checking if socket is connected"))
     {
-        fprintf(logs, "[-]Client Handler Thread: Error in checking if socket is connected\n");
+        printf(RED"[-]Client Handler Thread: Error in checking if socket is connected for client %lu\n"reset, client->ClientID);
+        fprintf(logs, "[-]Client Handler Thread: Error in checking if socket is connected for client %lu\n", client->ClientID);
     }
     else
     {
@@ -564,6 +613,7 @@ int main(int argc, char *argv[])
     MountTrie = Init_Trie();
     pthread_mutex_init(&MountTrieLock, NULL);
     strcpy(MountTrie->path_token, "Mount");
+    MountTrie->Server_Handle = NULL;
 
     // Initialize the LRU Cache
     MountCache = createCache();

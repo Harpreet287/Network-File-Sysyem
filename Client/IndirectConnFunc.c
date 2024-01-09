@@ -14,6 +14,68 @@
 
 void LScmd(char* arg, int ServerSockfd)
 {
+    if(CheckNull(arg, ErrorMsg("NULL Argument\nUSAGE: LIST <Path>", CMD_ERROR_INVALID_ARGUMENTS)))
+    {
+        printf(BWHT"USE 'LIST mount' or 'LIST . to list entire directory tree\n"reset);
+        fprintf(Clientlog, "[-]LScmd: Invalid Argument [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    arg = strtok(arg, " \t\n");
+    if(strtok(NULL, " \t\n") != NULL)
+    {
+        fprintf(Clientlog, "[-]LScmd: Invalid Argument Count [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    char* path = arg;
+    fprintf(Clientlog, "[+]LScmd: Listing Path %s [Time Stamp: %f]\n", path, GetCurrTime(Clock));
+
+    REQUEST_STRUCT req_struct;
+    REQUEST_STRUCT* req = &req_struct;
+    memset(req, 0, sizeof(REQUEST_STRUCT));
+
+    req->iRequestOperation = CMD_LIST;
+    req->iRequestClientID = iClientID;
+    strncpy(req->sRequestPath, path, MAX_BUFFER_SIZE);
+    // req->iRequestFlags = 0;
+
+    int iBytesSent = send(ServerSockfd, req, sizeof(REQUEST_STRUCT), 0);
+
+    if(iBytesSent != sizeof(REQUEST_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to send request to server", CMD_ERROR_SEND_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]LScmd: Failed to send request [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+    
+    RESPONSE_STRUCT res_struct;
+    RESPONSE_STRUCT* res = &res_struct;
+    memset(res, 0, sizeof(RESPONSE_STRUCT));
+
+    int iBytesRecv = recv(ServerSockfd, res, sizeof(RESPONSE_STRUCT), 0);
+    if(iBytesRecv != sizeof(RESPONSE_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to receive response from server", CMD_ERROR_RECV_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]LScmd: Failed to receive response [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    if(res->iResponseFlags != RESPONSE_FLAG_SUCCESS)
+    {
+        char* Msg = ErrorMsg("Failed to list directory", res->iResponseErrorCode);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]LScmd: Failed to list directory [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    printf(GRN"%s\n"reset, res->sResponseData);
+    fprintf(Clientlog, "[+]LScmd: Successfully listed directory [Time Stamp: %f]\n", GetCurrTime(Clock));
     return;
 }
 void Cpycmd(char* arg, int ServerSockfd)

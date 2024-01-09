@@ -31,6 +31,7 @@
 
 // Response Flags
 #define RESPONSE_FLAG_SUCCESS 0
+#define RESPONSE_FLAG_FAILURE -1
 #define BACKUP_RESPONSE 1
 
 // Request and Response Structs
