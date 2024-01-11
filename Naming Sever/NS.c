@@ -230,7 +230,7 @@ void* Client_Handler_Thread(void* clientHandle)
     }
 
     // Set Up request listener for the client
-    int ConnStatus;
+    int ConnStatus, CloseRequest = 0;
     while(ConnStatus = IsSocketConnected(client->iClientSocket))
     {
         // Receive the request from the client
@@ -246,7 +246,14 @@ void* Client_Handler_Thread(void* clientHandle)
         }
         else if(iRecvStatus == 0)
             break;
-        
+        // Check if the client requested to close the connection
+        if(request.iRequestOperation == CLOSE_CONNECTION)
+        {
+            printf(UGRN"[+]Client Handler Thread: Client %lu requested to close connection\n"reset, client->ClientID);
+            fprintf(logs, "[+]Client Handler Thread: Client %lu requested to close connection\n", client->ClientID);
+            CloseRequest = 1;
+            break;
+        }
         // Handle the request (Generate a response)
         RESPONSE_STRUCT response;
         memset(&response, 0, sizeof(response));
@@ -329,7 +336,7 @@ void* Client_Handler_Thread(void* clientHandle)
                 break;
             }
         }
-        
+    
         // Send the response to the client
         int iSendStatus = send(client->iClientSocket, &response, sizeof(response), 0);
         if(iSendStatus != sizeof(response))
@@ -347,9 +354,14 @@ void* Client_Handler_Thread(void* clientHandle)
         printf(RED"[-]Client Handler Thread: Error in checking if socket is connected for client %lu\n"reset, client->ClientID);
         fprintf(logs, "[-]Client Handler Thread: Error in checking if socket is connected for client %lu\n", client->ClientID);
     }
+    else if(CloseRequest)
+    {
+        printf(BHGRN"[+]Client Handler Thread: Client %lu (%s:%d) disconnected(GRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
+        fprintf(logs, "[+]Client Handler Thread: Client %lu (%s:%d) disconnected(GRACEFULLY)\n", client->ClientID, client->sClientIP, client->sClientPort);
+    }
     else
     {
-        printf(URED"[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
+        printf(BHRED"[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n"reset, client->ClientID, client->sClientIP, client->sClientPort);
         fprintf(logs, "[-]Client Handler Thread: Client %lu (%s:%d) disconnected(UNGRACEFULLY)\n", client->ClientID, client->sClientIP, client->sClientPort);
     }
 

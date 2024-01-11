@@ -30,6 +30,23 @@ void Ecmd(char* arg, int ServerSockfd)
         return;
     }
 
+    // Send the exit command to the server
+    REQUEST_STRUCT req;
+    memset(&req, 0, sizeof(REQUEST_STRUCT));
+    req.iRequestOperation = CLOSE_CONNECTION;
+    req.iRequestClientID = iClientID;
+
+    int err = send(ServerSockfd, &req, sizeof(REQUEST_STRUCT), 0);
+    if(err < sizeof(REQUEST_STRUCT))
+    {
+        char* Msg = ErrorMsg("Error in sending request to the server", CMD_ERROR_SEND_FAILED);
+        printf(RED"%s"reset"\n", Msg);
+        fprintf(Clientlog, "[-]Ecmd: %s [Time Stamp: %f]\n", Msg, GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    
     fprintf(Clientlog, "[+]Ecmd: Exiting Client [Time Stamp: %f]\n", GetCurrTime(Clock));
     printf("[+]Exiting\n");
     clearScreen();

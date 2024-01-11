@@ -1,5 +1,4 @@
 Contributer: Prakhar Singhal
 
 ISSUES:
-1. GetDirectory Function in NS doesnt work as intended
-2. Client Func " CLEAR, EXIT " doesnt work
+1. READ, WRITE, INFO code TODO on Server Side

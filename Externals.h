@@ -28,6 +28,7 @@
 #define CMD_MOVE 7
 #define CMD_COPY 8
 #define CMD_RENAME 9
+#define CLOSE_CONNECTION 10
 
 // Response Flags
 #define RESPONSE_FLAG_SUCCESS 0
