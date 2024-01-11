@@ -22,7 +22,7 @@ int Delete_Trie(TrieNode* root); // deletes the trie
 // int Recursive_Delete(TrieNode* root); // deletes the trie recursively
 
 void Print_Trie(TrieNode* root, int lvl); // prints the trie
-char* Get_Directory_Tree(TrieNode* root, char* path); // returns a string with subtree path for a given path
+int Get_Directory_Tree(TrieNode* root, char* path, char* buffer); // Populates the buffer with the directory tree
 // char* Get_Directory_Tree_Full(TrieNode* root, char* cur_dir, int lvl); // returns a string with the full tree path
 
 #endif

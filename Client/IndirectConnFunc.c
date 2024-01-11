@@ -67,9 +67,10 @@ void LScmd(char* arg, int ServerSockfd)
 
     if(res->iResponseFlags != RESPONSE_FLAG_SUCCESS)
     {
-        char* Msg = ErrorMsg("Failed to list directory", res->iResponseErrorCode);
+        char* Msg = ErrorMsg(res->sResponseData, res->iResponseErrorCode);
         printf(RED"%s\n"reset, Msg);
-        fprintf(Clientlog, "[-]LScmd: Failed to list directory [Time Stamp: %f]\n", GetCurrTime(Clock));
+        
+        fprintf(Clientlog, "%s [Time Stamp: %f]\n", Msg, GetCurrTime(Clock));
         free(Msg);
         return;
     }

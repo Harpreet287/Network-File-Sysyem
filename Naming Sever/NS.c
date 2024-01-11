@@ -299,8 +299,8 @@ void* Client_Handler_Thread(void* clientHandle)
                 fprintf(logs, "[+]Client Handler Thread: Client %lu requested to list directory %s\n", client->ClientID, request.sRequestPath);
                     
                 // Populate the response struct with paths under requested path
-                char* paths = Get_Directory_Tree(MountTrie, request.sRequestPath);
-                if(paths == NULL)
+                int err = Get_Directory_Tree(MountTrie, request.sRequestPath, response.sResponseData);
+                if(err == -2)
                 {
                     printf(RED"[-]Client Handler Thread: Error in getting directory tree for client %lu\n"reset, client->ClientID);
                     fprintf(logs, "[-]Client Handler Thread: Error in getting directory tree for client %lu\n", client->ClientID);
@@ -308,9 +308,8 @@ void* Client_Handler_Thread(void* clientHandle)
                     response.iResponseErrorCode = ERROR_GETTING_MOUNT_PATHS;
                     break;
                 }
-                else if(strcmp(paths, "Invalid Path") == 0)
+                else if(err == -1)
                 {
-                    free(paths);
                     printf(RED"[-]Client Handler Thread: Invalid Path %s for client %lu\n"reset, request.sRequestPath, client->ClientID);
                     fprintf(logs, "[-]Client Handler Thread: Invalid Path %s for client %lu\n", request.sRequestPath, client->ClientID);
                     response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
@@ -318,11 +317,9 @@ void* Client_Handler_Thread(void* clientHandle)
                     break;
                 }
                 
-                strncpy(response.sResponseData, paths, MAX_BUFFER_SIZE);
                 response.iResponseFlags = RESPONSE_FLAG_SUCCESS;
                 response.iResponseErrorCode = CMD_ERROR_SUCCESS;
 
-                free(paths);
                 break;
             }
             default:
@@ -566,7 +563,15 @@ void* Log_Flusher_Thread()
         fprintf(logs, "[+]Log Flusher Thread: Flushing logs [Time Stamp: %f]\n", GetCurrTime(Clock));
         fprintf(logs, "------------------------------------------------------------\n");
         fprintf(logs, "Current Mount Trie:\n");
-        fprintf(logs, "%s\n",Get_Directory_Tree(MountTrie, "mount"));
+        char buffer[MAX_BUFFER_SIZE];
+        memset(buffer, 0, MAX_BUFFER_SIZE);
+        int err = Get_Directory_Tree(MountTrie, "/", buffer);
+        if(CheckError(err, "[-]Log_Flusher_Thread: Error in getting directory tree"))
+        {
+            fprintf(logs, "[-]Log_Flusher_Thread: Error in getting directory tree\n");
+            exit(EXIT_FAILURE);
+        }
+        fprintf(logs, "%s\n",buffer);
         fprintf(logs, "Number of Current Clients: %d\n", clientHandleList->iClientCount);
         fprintf(logs, "Number of Current Servers: %d\n", serverHandleList->iServerCount);
         fprintf(logs, "------------------------------------------------------------\n");

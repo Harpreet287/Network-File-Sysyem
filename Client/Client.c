@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <poll.h>
 
 
 // Custom Header Files
@@ -92,23 +93,18 @@ int pollServer(int sockfd, char* ip, int port)
 {
     fprintf(Clientlog, "[+]pollServer: Polling server [Time Stamp: %f]\n",GetCurrTime(Clock));
 
-    fd_set write_fds;
-    struct timeval timeout;
+    // Poll the socket to check if it is writable using poll()
+    struct pollfd fds[1];
+    fds[0].fd = sockfd;
+    fds[0].events = POLLIN|POLLPRI|POLLOUT|POLLERR|POLLHUP;;
 
-    FD_ZERO(&write_fds);
-    FD_SET(sockfd, &write_fds);
-
-    timeout.tv_sec = POLL_TIME;
-    timeout.tv_usec = 0;
-
-    // Check if the socket is writable
-    int result = select(sockfd + 1, NULL, &write_fds, NULL, &timeout);
+    int result = poll(fds, 1, POLL_TIMEOUT);
 
     if (result == -1)
     {
-        printf(RED "[-]pollServer: Error in select\n" reset);
-        perror("select");
-        fprintf(Clientlog, "[-]pollServer: Error in select [Time Stamp: %f]\n",GetCurrTime(Clock));
+        printf(RED "[-]pollServer: Error in poll\n" reset);
+        perror("poll");
+        fprintf(Clientlog, "[-]pollServer: Error in poll [Time Stamp: %f]\n",GetCurrTime(Clock));
         exit(EXIT_FAILURE);
     }
     else if (result == 0)
