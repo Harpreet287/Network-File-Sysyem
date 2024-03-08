@@ -4,7 +4,18 @@
 #include <stdio.h>
 #include "./Trie.h"
 
+# define MAX_CONN_Q 5
 #define LOG_FLUSH_INTERVAL 10
+
+
+// structure for client object
+typedef struct Client
+{
+    int socket;
+    char* IP;
+    int port;
+}Client;
+
 
 // structure for clock object
 typedef struct Clock
@@ -22,10 +33,11 @@ double GetCurrTime(CLOCK* clock);
 extern FILE* Log_File;
 extern CLOCK* Clock;
 
-// Thread to listen for NS requests
 void* NS_Listner_Thread(void* arg);
-// Thread to listen for client requests
 void* Client_Listner_Thread(void* arg);
+void* Client_Handler_Thread(void* arg);
+
+
 
 // Populates the File_Trie with the contents of the cwd
 Trie* Initialize_File_Trie();

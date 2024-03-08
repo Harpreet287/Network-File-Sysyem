@@ -16,9 +16,28 @@
 
 int NS_Write_Socket;
 Trie *File_Trie;
+unsigned long Server_ID;
 
 FILE *Log_File;
 CLOCK *Clock;
+
+/**
+ * @brief Checks if the given socket is connected( Readable )
+ * @param sockfd: The socket to check
+ * @return: 1 if the socket is connected, 0 if the socket is disconnected, -1 on error
+ * @note: This function is non-blocking
+ */
+int IsSocketConnected(int sockfd)
+{
+    // Use recv with MSG_PEEK to check if the socket is connected
+    char buff[1];
+    int iRecvStatus = recv(sockfd, buff, sizeof(buff), MSG_PEEK);
+    if (CheckError(iRecvStatus, "[-]IsSocketConnected: Error in receiving data from socket"))
+        return -1;
+    else if (iRecvStatus == 0)
+        return 0;
+    return 1;
+}
 
 /**
  * @brief Initializes the clock object.
@@ -75,13 +94,12 @@ double GetCurrTime(CLOCK *Clock)
     return (time.tv_sec + time.tv_nsec * 1e-9) - (Clock->bootTime);
 }
 
-
 /**
  * @brief Recursive Helper function to populate the trie with the contents of the cwd.
  * @param root: The root node of the trie.
  * @return: 0 on success, -1 on failure.
-*/
-int Populate_Trie(Trie* root, char* dir)
+ */
+int Populate_Trie(Trie *root, char *dir)
 {
     // Open the directory and add all files and folders to the trie
     struct dirent *entry, **namelist;
@@ -92,13 +110,13 @@ int Populate_Trie(Trie* root, char* dir)
         return -1;
     }
 
-    for(int i = 0; i < Num_Entries; i++)
+    for (int i = 0; i < Num_Entries; i++)
     {
         // Get the name of the file/folder
-        char* name = namelist[i]->d_name;
+        char *name = namelist[i]->d_name;
 
         // Ignore the current and parent directory
-        if (strncmp(name, ".",1) == 0 || strncmp(name, "..",2) == 0)
+        if (strncmp(name, ".", 1) == 0 || strncmp(name, "..", 2) == 0)
             continue;
 
         // Get the path of the file/folder
@@ -123,15 +141,14 @@ int Populate_Trie(Trie* root, char* dir)
             if (CheckError(err, "[-]Populate_Trie: Error in populating trie"))
             {
                 printf("Error Path: %s\n", path);
-                fprintf(Log_File, "[-]Populate_Trie: Error in recursively adding folder contents to trie (Path: %s) [Time Stamp: %f]\n", path ,GetCurrTime(Clock));
+                fprintf(Log_File, "[-]Populate_Trie: Error in recursively adding folder contents to trie (Path: %s) [Time Stamp: %f]\n", path, GetCurrTime(Clock));
             }
-
         }
 
-        if(err < 0)
+        if (err < 0)
         {
-            printf("[+]Populate_Trie: Error Detected while populating %d paths\n", -1*err);
-            fprintf(Log_File, "[+]Populate_Trie: Error Detected while populating %d paths [Time Stamp: %f]\n", -1*err, GetCurrTime(Clock));
+            printf("[+]Populate_Trie: Error Detected while populating %d paths\n", -1 * err);
+            fprintf(Log_File, "[+]Populate_Trie: Error Detected while populating %d paths [Time Stamp: %f]\n", -1 * err, GetCurrTime(Clock));
             return -1;
         }
     }
@@ -141,12 +158,12 @@ int Populate_Trie(Trie* root, char* dir)
 /**
  * @brief Initializes the file trie with the contents of the cwd.
  * @return: A pointer to the root node of the trie on success, NULL on failure.
- * @note: The trie is populated with the all contents of the cwd(recursively) 
-*/
-Trie* Initialize_File_Trie()
+ * @note: The trie is populated with the all contents of the cwd(recursively)
+ */
+Trie *Initialize_File_Trie()
 {
     // Initialize the trie
-    Trie* root =  trie_init();
+    Trie *root = trie_init();
     if (CheckNull(root, "[-]Initialize_File_Trie: Error in initializing trie"))
     {
         fprintf(Log_File, "[-]Initialize_File_Trie: Error in initializing trie\n");
@@ -160,7 +177,7 @@ Trie* Initialize_File_Trie()
         fprintf(Log_File, "[-]Initialize_File_Trie: Error in getting cwd\n");
         return NULL;
     }
-    printf("[+]Initialize_File_Trie: Trie initialized at path: %s (CWD)\n", cwd);
+    printf("[+]Initialize_File_Trie: Trie initialized at path:\n %s (CWD)\n", cwd);
 
     // Populate the trie with the contents of the cwd (recursive)
     int err = Populate_Trie(root, ".");
@@ -187,9 +204,9 @@ Trie* Initialize_File_Trie()
  * @param arg: The port number to listen on.
  * @return: NULL
  **/
-void* NS_Listner_Thread(void* arg)
+void *NS_Listner_Thread(void *arg)
 {
-    int NSPort = *(int*)arg;
+    int NSPort = *(int *)arg;
 
     // Socket for listening to Name Server
     int NS_Listen_Socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -222,12 +239,15 @@ void* NS_Listner_Thread(void* arg)
         exit(EXIT_FAILURE);
     }
 
+    printf("[+]NS_Listner_Thread: Listening for connections on Port: %d\n", NSPort);
+    fprintf(Log_File, "[+]NS_Listner_Thread: Listening for connections on Port: %d [Time Stamp: %f]\n", NSPort, GetCurrTime(Clock));
+
     // Accept connections
     struct sockaddr_in NS_Client_Addr;
     socklen_t NS_Client_Addr_Size = sizeof(NS_Client_Addr);
     int NS_Client_Socket = accept(NS_Listen_Socket, (struct sockaddr *)&NS_Client_Addr, &NS_Client_Addr_Size);
 
-    char* ns_IP = inet_ntoa(NS_Client_Addr.sin_addr);
+    char *ns_IP = inet_ntoa(NS_Client_Addr.sin_addr);
     int ns_Port = ntohs(NS_Client_Addr.sin_port);
 
     if (CheckError(NS_Client_Socket, "[-]NS_Listner_Thread: Error in accepting connections"))
@@ -235,17 +255,17 @@ void* NS_Listner_Thread(void* arg)
         fprintf(Log_File, "[-]NS_Listner_Thread: Error in accepting connections [Time Stamp: %f]\n", GetCurrTime(Clock));
         exit(EXIT_FAILURE);
     }
-    else if(strncmp(ns_IP, NS_IP, IP_LENGTH) != 0)
+    else if (strncmp(ns_IP, NS_IP, IP_LENGTH) != 0)
     {
-        printf(RED"[-]NS_Listner_Thread: Connection Rejected from %s:%d\n"CRESET, ns_IP, ns_Port);
+        printf(RED "[-]NS_Listner_Thread: Connection Rejected from %s:%d\n" CRESET, ns_IP, ns_Port);
         fprintf(Log_File, "[-]NS_Listner_Thread: Connection Rejected from %s:%d [Time Stamp: %f]\n", ns_IP, ns_Port, GetCurrTime(Clock));
         exit(EXIT_FAILURE);
     }
 
-    printf(GRN"[+]NS_Listner_Thread: Connection Established with Naming Server\n"CRESET);
+    printf(GRN "[+]NS_Listner_Thread: Connection Established with Naming Server\n" CRESET);
     fprintf(Log_File, "[+]NS_Listner_Thread: Connection Established with Naming Server [Time Stamp: %f]\n", GetCurrTime(Clock));
 
-    while(1)
+    while (IsSocketConnected(NS_Client_Socket))
     {
         REQUEST_STRUCT NS_Response;
         REQUEST_STRUCT *NS_Response_Struct = &NS_Response;
@@ -257,15 +277,15 @@ void* NS_Listner_Thread(void* arg)
             fprintf(Log_File, "[-]NS_Listner_Thread: Error in receiving data from Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
             exit(EXIT_FAILURE);
         }
-        else if(err == 0)
+        else if (err == 0)
         {
-            printf(RED"[-]NS_Listner_Thread: Connection with Name Server Closed\n"CRESET);
+            printf(RED "[-]NS_Listner_Thread: Connection with Name Server Closed\n" CRESET);
             fprintf(Log_File, "[-]NS_Listner_Thread: Connection with Name Server Closed [Time Stamp: %f]\n", GetCurrTime(Clock));
             break;
         }
 
         // Print the request received from the Name Server
-        printf(GRN"[+]NS_Listner_Thread: Request Received from Name Server\n"CRESET);
+        printf(GRN "[+]NS_Listner_Thread: Request Received from Name Server\n" CRESET);
         fprintf(Log_File, "[+]NS_Listner_Thread: Request Received from Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
         printf("Request Operation: %d\n", NS_Response_Struct->iRequestOperation);
         printf("Request Path: %s\n", NS_Response_Struct->sRequestPath);
@@ -280,21 +300,272 @@ void* NS_Listner_Thread(void* arg)
  * @param arg: The port number to listen on.
  * @return: NULL
  **/
-void* Client_Listner_Thread(void* arg)
+void *Client_Listner_Thread(void *arg)
 {
+    int ClientPort = *(int *)arg;
+
+    // Socket for listening to Client
+    int Client_Listen_Socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (CheckError(Client_Listen_Socket, "[-]Client_Listner_Thread: Error in creating socket for listening to Client"))
+    {
+        fprintf(Log_File, "[-]Client_Listner_Thread: Error in creating socket for listening to Client [Time Stamp: %f]\n", GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+
+    // Address of Socket
+    struct sockaddr_in Client_Listen_Addr;
+    Client_Listen_Addr.sin_family = AF_INET;
+    Client_Listen_Addr.sin_port = htons(ClientPort);
+    Client_Listen_Addr.sin_addr.s_addr = INADDR_ANY;
+    memset(Client_Listen_Addr.sin_zero, '\0', sizeof(Client_Listen_Addr.sin_zero));
+
+    // Bind the socket to the address
+    int err = bind(Client_Listen_Socket, (struct sockaddr *)&Client_Listen_Addr, sizeof(Client_Listen_Addr));
+    if (CheckError(err, "[-]Client_Listner_Thread: Error in binding socket to address"))
+    {
+        fprintf(Log_File, "[-]Client_Listner_Thread: Error in binding socket to address [Time Stamp: %f]\n", GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+
+    // Listen for connections
+    err = listen(Client_Listen_Socket, MAX_CONN_Q);
+    if (CheckError(err, "[-]Client_Listner_Thread: Error in listening for connections"))
+    {
+        fprintf(Log_File, "[-]Client_Listner_Thread: Error in listening for connections [Time Stamp: %f]\n", GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+
+    printf("[+]Client_Listner_Thread: Listening for connections on Port: %d\n", ClientPort);
+    fprintf(Log_File, "[+]Client_Listner_Thread: Listening for connections on Port: %d [Time Stamp: %f]\n", ClientPort, GetCurrTime(Clock));
+
+    struct sockaddr_in Client_Addr;
+    socklen_t Client_Addr_Size = sizeof(Client_Addr);
+    int Client_Socket;
+    // Accept connections and handle requests concurrently
+    while (Client_Socket = accept(Client_Listen_Socket, (struct sockaddr *)&Client_Addr, &Client_Addr_Size))
+    {
+        char *client_IP = inet_ntoa(Client_Addr.sin_addr);
+        int client_Port = ntohs(Client_Addr.sin_port);
+
+        Client client;
+        client.socket = Client_Socket;
+        client.IP = client_IP;
+        client.port = client_Port;
+
+        if (CheckError(Client_Socket, "[-]Client_Listner_Thread: Error in accepting connections"))
+        {
+            fprintf(Log_File, "[-]Client_Listner_Thread: Error in accepting connections [Time Stamp: %f]\n", GetCurrTime(Clock));
+            exit(EXIT_FAILURE);
+        }
+
+        printf(GRN "[+]Client_Listner_Thread: Connection Established with Client\n" CRESET);
+        fprintf(Log_File, "[+]Client_Listner_Thread: Connection Established with Client [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+        // Create a thread to handle the request
+        pthread_t Client_Handler;
+        err = pthread_create(&Client_Handler, NULL, Client_Handler_Thread, (void *)&client);
+        if (CheckError(err, "[-]Client_Listner_Thread: Error in creating thread for handling client request"))
+        {
+            fprintf(Log_File, "[-]Client_Listner_Thread: Error in creating thread for handling client request [Time Stamp: %f]\n", GetCurrTime(Clock));
+            exit(EXIT_FAILURE);
+        }
+        fprintf(Log_File, "[+]Client_Listner_Thread: Thread Created for handling client request [Time Stamp: %f]\n", GetCurrTime(Clock));
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief Thread to handle requests from the Client.
+ * @param arg: The socket to communicate with the client.
+ * @return: NULL
+ */
+void *Client_Handler_Thread(void *arg)
+{
+    Client client = *(Client *)arg;
+    int Client_Socket = client.socket;
+    char *client_IP = client.IP;
+    int client_Port = client.port;
+
+    // Receive the request from the Client
+    REQUEST_STRUCT Client_Request;
+    REQUEST_STRUCT *Client_Request_Struct = &Client_Request;
+    int err = recv(Client_Socket, Client_Request_Struct, sizeof(REQUEST_STRUCT), 0);
+    if (err < 0)
+    {
+        printf(RED "[-]Client_Handler_Thread: Error in receiving data from Client (IP: %s, Port: %d)\n" CRESET, client_IP, client_Port);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Error in receiving data from Client (IP: %s, Port: %d) [Time Stamp: %f]\n", client_IP, client_Port, GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+    else if (err == 0)
+    {
+        printf(RED "[-]Client_Handler_Thread: Connection with Client Closed Unexpectedly\n" CRESET);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Connection with Client Closed Unexpectedly [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return NULL;
+    }
+
+    // Print the request received from the Client
+    printf(GRN "[+]Client_Handler_Thread: Request Received from Client (IP: %s, Port: %d)\n" CRESET, client_IP, client_Port);
+    fprintf(Log_File, "[+]Client_Handler_Thread: Request Received from Client (IP: %s, Port: %d) [Time Stamp: %f]\n", client_IP, client_Port, GetCurrTime(Clock));
+    printf("Request Operation: %d\n", Client_Request_Struct->iRequestOperation);
+    printf("Request Path: %s\n", Client_Request_Struct->sRequestPath);
+    printf("Request Flag: %d\n", Client_Request_Struct->iRequestFlags);
+    printf("Request Client ID: %lu\n", Client_Request_Struct->iRequestClientID);
+
+    RESPONSE_STRUCT Client_Response;
+    RESPONSE_STRUCT *Client_Response_Struct = &Client_Response;
+    memset(Client_Response_Struct, 0, sizeof(RESPONSE_STRUCT));
+    Client_Response_Struct->iResponseOperation = Client_Request_Struct->iRequestOperation;
+    Client_Response_Struct->iResponseFlags = Client_Request_Struct->iRequestFlags;
+    Client_Response_Struct->iResponseServerID = Server_ID;
+
+    switch (Client_Request_Struct->iRequestOperation)
+    {
+    case CMD_READ:
+    {
+        // generate a random stop sequence
+        char stop_sequence[MAX_BUFFER_SIZE];
+        memset(stop_sequence, 0, MAX_BUFFER_SIZE);
+        snprintf(stop_sequence, MAX_BUFFER_SIZE, "STOP%d", rand() % 1000);
+
+        // send the stop sequence to the client
+        send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+        // Check if the file is exposed by the server
+        char file_path[MAX_BUFFER_SIZE];
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
+        int present = trie_search(File_Trie, Client_Request_Struct->sRequestPath);
+        if (!present)
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+            // send a error buffer to indicate file not found
+            char msg[] = RED "Error Fetching File" reset "\n";
+            printf("%s\n", msg);
+            send(Client_Socket, &msg, sizeof(msg), 0);
+            send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+            break;
+        }
+
+        // Remove first token from the path (Mount)
+        char* path = NULL;
+        __strtok_r(file_path, "/", &path);
+
+        // Open the file and read it's contents
+        FILE *file = fopen(path, "r");
+        if (CheckNull(file, "[-]Client_Handler_Thread: Error in opening file"))
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_ACCESS;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+            // send a error buffer to indicate file not found
+            char msg[] = RED "Error Fetching File" reset "\n";
+            send(Client_Socket, &msg, sizeof(msg), 0);
+            send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+            break;
+        }
+
+        char buffer[MAX_BUFFER_SIZE];
+        memset(buffer, 0, MAX_BUFFER_SIZE);
+
+        while (fread(buffer, 1, MAX_BUFFER_SIZE, file) > 0)
+        {
+            send(Client_Socket, buffer, MAX_BUFFER_SIZE, 0);
+            memset(buffer, 0, MAX_BUFFER_SIZE);
+        }
+
+        // send the stop sequence to the client to indicate end of file
+        send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+        int err = ferror(file);
+        if (err)
+        {
+            Client_Response_Struct->iResponseFlags = RESPONSE_FLAG_FAILURE;
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_ACCESS;
+            strncpy(Client_Response_Struct->sResponseData, "Error in reading file", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: Error in reading file\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: Error in reading file [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+
+        Client_Response_Struct->iResponseErrorCode = ERROR_CODE_SUCCESS;
+        strncpy(Client_Response_Struct->sResponseData, "File Read Successfully", MAX_BUFFER_SIZE);
+
+        send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
+
+        printf(GRN "[+]Client_Handler_Thread: File Read Successfully\n" CRESET);
+        fprintf(Log_File, "[+]Client_Handler_Thread: File Read Successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
+    }
+    case CMD_WRITE:
+    {
+        break;
+    }
+    case CMD_CREATE:
+    case CMD_DELETE:
+    case CMD_COPY:
+    case CMD_RENAME:
+    case CMD_LIST:
+    case CMD_INFO:
+    case CMD_MOVE:
+    {
+        Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_AUTHENTICATION;
+        strncpy(Client_Response_Struct->sResponseData, "Invalid Authentication", MAX_BUFFER_SIZE);
+        printf(RED "[-]Client_Handler_Thread: Client Requested a Indirect Secure Operation\n" CRESET);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Client Requested a Indirect Secure Operation [Time Stamp: %f]\n", GetCurrTime(Clock));
+        break;
+    }
+    default:
+    {
+        Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_OPERATION;
+        strncpy(Client_Response_Struct->sResponseData, "Invalid Operation", MAX_BUFFER_SIZE);
+        printf(RED "[-]Client_Handler_Thread: Invalid Request Operation\n" CRESET);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Invalid Request Operation [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+        break;
+    }
+    }
+
+    // Send the response to the Client
+    err = send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
+    if (err < 0)
+    {
+        printf(RED "[-]Client_Handler_Thread: Error in sending data to Client (IP: %s, Port: %d)\n" CRESET, client_IP, client_Port);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Error in sending data to Client (IP: %s, Port: %d) [Time Stamp: %f]\n", client_IP, client_Port, GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+    else if (err == 0)
+    {
+        printf(RED "[-]Client_Handler_Thread: Connection with Client Closed Unexpectedly\n" CRESET);
+        fprintf(Log_File, "[-]Client_Handler_Thread: Connection with Client Closed Unexpectedly [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return NULL;
+    }
+
+    printf(GRN "[+]Client_Handler_Thread: Response Sent to Client (IP: %s, Port: %d)\n" CRESET, client_IP, client_Port);
+    fprintf(Log_File, "[+]Client_Handler_Thread: Response Sent to Client (IP: %s, Port: %d) [Time Stamp: %f]\n", client_IP, client_Port, GetCurrTime(Clock));
+
     return NULL;
 }
 
 /**
  * @brief Thread to flush the logs to the log file.
  * @note: The logs are flushed every LOG_FLUSH_INTERVAL seconds.
-*/
-void* Log_Flusher_Thread()
+ */
+void *Log_Flusher_Thread()
 {
-    while(1)
+    while (1)
     {
         sleep(LOG_FLUSH_INTERVAL);
-        printf(BBLK"[+]Log Flusher Thread: Flushing logs\n"reset);
+        printf(BBLK "[+]Log Flusher Thread: Flushing logs\n" reset);
 
         fprintf(Log_File, "[+]Log Flusher Thread: Flushing logs [Time Stamp: %f]\n", GetCurrTime(Clock));
         fprintf(Log_File, "------------------------------------------------------------\n");
@@ -308,7 +579,7 @@ void* Log_Flusher_Thread()
         }
         fprintf(Log_File, "%s\n", buffer);
         fprintf(Log_File, "------------------------------------------------------------\n");
-        
+
         fflush(Log_File);
     }
     return NULL;
@@ -317,10 +588,10 @@ void* Log_Flusher_Thread()
 /**
  * @brief Exit handler for the server.
  * @note: destroys the trie and closes the log file.
-*/
+ */
 void exit_handler()
 {
-    printf(BRED"[-]Server Exiting\n"reset);
+    printf(BRED "[-]Server Exiting\n" reset);
     fprintf(Log_File, "[-]Server Exiting [Time Stamp: %f]\n", GetCurrTime(Clock));
     trie_destroy(File_Trie);
     fclose(Log_File);
@@ -357,7 +628,8 @@ int main()
     // Create a thread to flush the logs periodically
     pthread_t tLogFlusherThread;
     int iThreadStatus = pthread_create(&tLogFlusherThread, NULL, Log_Flusher_Thread, NULL);
-    if(CheckError(iThreadStatus, "[-]Error in creating thread")) return 1;
+    if (CheckError(iThreadStatus, "[-]Error in creating thread"))
+        return 1;
 
     // Initialize trie for storing and saving all files exposed by the server (includes entire cwd structure)
     // If a folder is exposed, then it's children are also exposed
@@ -375,6 +647,7 @@ int main()
     NS_Addr.sin_port = htons(NS_SERVER_PORT);
     NS_Addr.sin_addr.s_addr = inet_addr(NS_IP);
     memset(NS_Addr.sin_zero, '\0', sizeof(NS_Addr.sin_zero));
+
     // Socket for sending data to Name Server
     NS_Write_Socket = socket(AF_INET, SOCK_STREAM, 0);
     if (CheckError(NS_Write_Socket, "[-]main: Error in creating socket for sending data to Name Server"))
@@ -388,11 +661,15 @@ int main()
         fprintf(Log_File, "[-]main: Error in connecting to Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
         exit(EXIT_FAILURE);
     }
-
+    else
+    {
+        printf("[+]Connection Established with Naming Server\n");
+        fprintf(Log_File, "[+]Connection Established with Naming Server [Time Stamp: %f]\n", GetCurrTime(Clock));
+    }
     STORAGE_SERVER_INIT_STRUCT Packet;
     STORAGE_SERVER_INIT_STRUCT *SS_Init_Struct = &Packet;
 
-    /* 
+    /*
     STORAGE_SERVER_INIT_STRUCT *SS_Init_Struct = (STORAGE_SERVER_INIT_STRUCT *)malloc(sizeof(STORAGE_SERVER_INIT_STRUCT));
     if (CheckNull(SS_Init_Struct, "[-]main: Error in allocating memory"))
     {
@@ -403,7 +680,7 @@ int main()
 
     SS_Init_Struct->sServerPort_Client = ClientPort;
     SS_Init_Struct->sServerPort_NServer = NSPort;
-    char root_path[MAX_BUFFER_SIZE] = "./"; 
+    char root_path[MAX_BUFFER_SIZE] = "./";
     memset(SS_Init_Struct->MountPaths, 0, MAX_BUFFER_SIZE);
     err = trie_paths(File_Trie, SS_Init_Struct->MountPaths, root_path);
     if (CheckError(err, "[-]main: Error in getting mount paths"))
@@ -412,7 +689,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    printf("[+]main: Sent Mounted Paths: \n%s\n", SS_Init_Struct->MountPaths);
+    // printf("[+]main: Sent Mounted Paths: \n%s\n", SS_Init_Struct->MountPaths);
 
     err = send(NS_Write_Socket, SS_Init_Struct, sizeof(STORAGE_SERVER_INIT_STRUCT), 0);
     if (err != sizeof(STORAGE_SERVER_INIT_STRUCT))
@@ -421,9 +698,26 @@ int main()
         exit(EXIT_FAILURE);
     }
     fprintf(Log_File, "[+]Initialization Packet Sent to Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
-    // free(SS_Init_Struct);
+
+    // receive the Server ID from the Name Server
+    err = recv(NS_Write_Socket, &Server_ID, sizeof(unsigned long), 0);
+    if (CheckError(err, "[-]main: Error in receiving data from Name Server"))
+    {
+        fprintf(Log_File, "[-]main: Error in receiving data from Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        exit(EXIT_FAILURE);
+    }
+    else if (err == 0)
+    {
+        printf(RED "[-]main: Connection with Name Server Closed Unexpectedly\n" CRESET);
+        fprintf(Log_File, "[-]main: Connection with Name Server Closed Unexpectedly [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return 1;
+    }
 
     printf("[+]Connection Established with Naming Server\n");
+    fprintf(Log_File, "[+]Connection Established with Naming Server [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+    printf(BWHT "[+]Server ID: %lu\n" CRESET, Server_ID);
+    fprintf(Log_File, "[+]Server ID: %lu [Time Stamp: %f]\n", Server_ID, GetCurrTime(Clock));
 
     // Setup Listner for Name Server
     pthread_t NS_Listner;

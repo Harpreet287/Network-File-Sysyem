@@ -360,3 +360,30 @@ int trie_paths(Trie* file_trie, char* buffer, char* root)
     return 0;
 
 }
+
+/**
+ * @brief Searches for a path in the trie
+ * @param file_trie the trie to be searched
+ * @param path the path to be searched
+ * @return 1 if found, 0 if not found 
+ * @note modifies the path string provided
+*/
+int trie_search(Trie* file_trie, char* path)
+{
+    char *path_token = strtok(path, "/"); 
+    // Ignore the first token as it is the cwd
+    path_token = strtok(NULL, "/");
+
+    Trie* curr = file_trie;
+    while(path_token != NULL)
+    {
+        int index = hash(path_token);
+        if(curr->children[index] == NULL)
+        {
+            return 0;
+        }
+        curr = curr->children[index];
+        path_token = strtok(NULL, "/");
+    }
+    return 1;
+}

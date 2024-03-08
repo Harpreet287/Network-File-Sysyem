@@ -77,8 +77,8 @@ void Hcmd(char* arg, int ServerSockfd)
     
     fprintf(Clientlog, "[+]Hcmd: Printing Help Menu [Time Stamp: %f]\n", GetCurrTime(Clock));
     
-    printf(GRNHB"=====================HELP MENU==================f==="reset"\n");
-    printf(YEL"Avaliable Commands:\n"reset
+    printf(GRNHB"=====================HELP MENU======================"reset"\n");
+    printf(YELB"Avaliable Commands:\n"reset
             BGRN
             "1. READ <Path>: Reads the file at the given path\n"
             "2. WRITE <Flag> <Path>: Writes to the file at the given path. Flag can set to either \'O\': Overwrite or to \'A\': Append\n"
@@ -88,7 +88,7 @@ void Hcmd(char* arg, int ServerSockfd)
             "6. CREATE <Flag> <Path>: Creates a file at the given path. Flag can set to either \'F\': File or to \'D\': Directory\n" 
             "7. RENAME <Source Path> <Target Name>: Renames the file/directory at the source path to the target name\n"
             "8. INFO <Path>: Prints the information about the file/directory at the given path\n"
-            "9. LS <Path>: Lists the contents of the directory at the given path (Note: If no path is provided lists the entire mount directory\n"
+            "9. LIST <Path>: Lists the contents of the directory at the given path (Note: If no path is provided lists the entire mount directory\n"
             "10. CLEAR: Clears the screen\n"
             "11. HELP: Prints the help menu\n"
             "12. EXIT: Exits the client\n"

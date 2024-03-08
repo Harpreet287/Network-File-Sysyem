@@ -33,3 +33,12 @@ clean:
 
 logs:
 	cat $(LOG_FILE) | less
+
+compile: clean all
+	@echo "Compile complete"
+	sleep 1
+	clear
+	@echo "Running the program..."
+	./$(TARGET) 
+	@echo "Program has finished running"
+	@echo "To view the log file, run 'make logs'"

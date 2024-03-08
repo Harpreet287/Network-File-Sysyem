@@ -63,7 +63,7 @@ void Rcmd(char* arg, int ServerSockfd)
         return;
     }
     
-    if(res->iResponseErrorCode != CMD_ERROR_SUCCESS)
+    if(res->iResponseFlags == RESPONSE_FLAG_FAILURE )
     {
         char* Msg = ErrorMsg("Failed to read file", res->iResponseErrorCode);
         printf(RED"%s\n"reset, Msg);
@@ -76,12 +76,23 @@ void Rcmd(char* arg, int ServerSockfd)
         printf(YEL"Corresponding Storage Server is down. Trying to read from backup server\n"reset);
         fprintf(Clientlog, "[+]Rcmd: Corresponding Storage Server is down. Trying to read from backup server [Time Stamp: %f]\n", GetCurrTime(Clock));
 
+        // Modify the path to the backup path
         memset(req->sRequestPath, 0, sizeof(req->sRequestPath));
         snprintf(req->sRequestPath, MAX_BUFFER_SIZE, "./backup%s", path);
     }
     // The response data is the IP and Port of the storage server serving the file seperated by a space
     char* ip = strtok(res->sResponseData, " ");
     char* port = strtok(NULL, " ");
+
+    // Check if Packet corresponds to error
+    if(res->iResponseFlags == RESPONSE_FLAG_FAILURE)
+    {
+        char* Msg = ErrorMsg("Failed to read file", res->iResponseErrorCode);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Rcmd: Failed to read file [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
 
     // Check if  IP and Port are valid
     if(CheckNull(ip, ErrorMsg("Invalid IP received from server", CMD_ERROR_INVALID_RECV_VALUE)))
@@ -127,8 +138,18 @@ void Rcmd(char* arg, int ServerSockfd)
         free(Msg);
         return;
     }
+    // Receive stop sequence from server
+    char stop[MAX_BUFFER_SIZE];
+    iBytesRecv = recv(StorageSockfd, stop, MAX_BUFFER_SIZE, 0);
+    if(CheckError(iBytesRecv, ErrorMsg("Failed to receive stop sequence from storage server", CMD_ERROR_RECV_FAILED)))
+    {
+        fprintf(Clientlog, "[-]Rcmd: Failed to receive stop sequence from storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+    // printf("Stop Sequence: %s\n", stop);
 
     // Receive the File from the storage server in chunks of MAX_BUFFER_SIZE until the server sends a chunk of size less than MAX_BUFFER_SIZE
+    long long int FileSize = 0;
     printf("File Contents:\n"MAG"----------------------------------------\n");
     while(1)
     {
@@ -142,12 +163,42 @@ void Rcmd(char* arg, int ServerSockfd)
             return;
         }
 
+        // Check if the server has sent the stop sequence
+        if(strncmp(buffer, stop, MAX_BUFFER_SIZE) == 0)
+        {
+            break;
+        }
+
         // print the recieved data
         printf("%s", buffer);
-        if(iBytesRecv < MAX_BUFFER_SIZE)
-            break;
+        FileSize += strlen(buffer);
+
     }
-    printf("----------------------------------------\n"reset);
+    
+    printf("\n----------------------------------------\n"reset);
+    printf("Read Bytes: %lld Bytes\n", FileSize);
+    // Receive the response from the storage server
+    iBytesRecv = recv(StorageSockfd, res, sizeof(RESPONSE_STRUCT), 0);
+    if(iBytesRecv != sizeof(RESPONSE_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to receive response from storage server", CMD_ERROR_RECV_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Rcmd: Failed to receive response from storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    if(res->iResponseFlags == RESPONSE_FLAG_FAILURE)
+    {
+        char* Msg = ErrorMsg("Failed to read file from storage server", res->iResponseErrorCode);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Rcmd: Failed to read file from storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    // log the response
+    fprintf(Clientlog, "[+]Rcmd: Server Response: %s [Time Stamp: %f]\n", res->sResponseData, GetCurrTime(Clock));
 
     // Close the socket
     close(StorageSockfd);

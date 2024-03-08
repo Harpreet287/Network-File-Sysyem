@@ -39,6 +39,7 @@ Reader_Writer_Lock* trie_get_path_lock(Trie* file_trie, char* path); // Get corr
 int trie_delete(Trie* file_trie, char *path); // Delete a path from the trie (deletes all children path)
 int trie_destroy(Trie* file_trie); // Destroy the trie on shutdown
 
+int trie_search(Trie* file_trie, char* path); // Search for a path in the trie
 int trie_print(Trie* file_trie, char* buffer, int level); // Print the trie
 int trie_paths(Trie* file_trie, char* buffer, char* root); // Get all paths in the trie under root-path
 

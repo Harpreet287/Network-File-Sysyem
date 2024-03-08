@@ -9,7 +9,9 @@
 #define MAX_QUEUE_SIZE 5
 #define MAX_PATH_LEN 1024
 #define LOG_FLUSH_INTERVAL 10
-#define CLOCK_MONOTONIC_RAW 4
+// #define CLOCK_MONOTONIC_RAW 4
+#define MAX_CONN_REQ 10
+#define CONN_TIMEOUT 2
 
 
 
