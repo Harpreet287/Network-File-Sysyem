@@ -508,6 +508,107 @@ void *Client_Handler_Thread(void *arg)
     }
     case CMD_WRITE:
     {
+        // parse the write flag
+        int write_flag = Client_Request_Struct->iRequestFlags;
+        if (write_flag != REQUEST_FLAG_APPEND && write_flag != REQUEST_FLAG_OVERWRITE)
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_FLAG;
+            strncpy(Client_Response_Struct->sResponseData, "Invalid Write Flag", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: Invalid Write Flag\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: Invalid Write Flag [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+
+        // generate a random stop sequence
+        char stop_sequence[MAX_BUFFER_SIZE];
+        memset(stop_sequence, 0, MAX_BUFFER_SIZE);
+        snprintf(stop_sequence, MAX_BUFFER_SIZE, "STOP%d", rand() % 1000);
+
+        // send the stop sequence to the client
+        send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+        // Check if the file is exposed by the server
+        char file_path[MAX_BUFFER_SIZE];
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
+        int present = trie_search(File_Trie, Client_Request_Struct->sRequestPath);
+        if(!present)
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+            // send a error buffer to indicate file not found
+            char msg[] = RED "Error Fetching File" reset "\n";
+            printf("%s\n", msg);
+            send(Client_Socket, &msg, sizeof(msg), 0);
+            send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+            break;
+        }
+
+        // Remove first token from the path (Mount)
+        char* path = NULL;
+        __strtok_r(file_path, "/", &path);
+
+        // Open the file and write to it with the specified flag
+        char* mode = (write_flag == REQUEST_FLAG_OVERWRITE) ? "w" : "a";
+
+        FILE *file = fopen(path, mode);
+        if (CheckNull(file, "[-]Client_Handler_Thread: Error in opening file"))
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_ACCESS;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+            // send a error buffer to indicate file not found
+            char msg[] = RED "Error Opening File" reset "\n";
+            send(Client_Socket, &msg, sizeof(msg), 0);
+            send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
+
+            break;
+        }
+
+        char buffer[MAX_BUFFER_SIZE];
+        memset(buffer, 0, MAX_BUFFER_SIZE);
+
+        // receive the file contents from the client
+        while (recv(Client_Socket, buffer, MAX_BUFFER_SIZE, 0) > 0)
+        {
+            // check if the stop sequence is received
+            if (strncmp(buffer, stop_sequence, MAX_BUFFER_SIZE) == 0)
+                break;
+            
+            size_t writeSize = fwrite(buffer, 1, strlen(buffer), file);
+            printf("Writing %ld bytes to file\n", writeSize);
+            fprintf(Log_File, "Writing %ld bytes to file\n", writeSize);
+            memset(buffer, 0, MAX_BUFFER_SIZE);
+        }
+
+        int err = ferror(file);
+        if (err)
+        {
+            Client_Response_Struct->iResponseFlags = RESPONSE_FLAG_FAILURE;
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_ACCESS;
+            strncpy(Client_Response_Struct->sResponseData, "Error in writing file", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: Error in writing file\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: Error in writing file [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+
+        fclose(file);
+
+        Client_Response_Struct->iResponseErrorCode = ERROR_CODE_SUCCESS;
+        strncpy(Client_Response_Struct->sResponseData, "File Written Successfully", MAX_BUFFER_SIZE);
+
+        send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
+
+        printf(GRN "[+]Client_Handler_Thread: File Written Successfully\n" CRESET);
+        fprintf(Log_File, "[+]Client_Handler_Thread: File Written Successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
         break;
     }
     case CMD_CREATE:
