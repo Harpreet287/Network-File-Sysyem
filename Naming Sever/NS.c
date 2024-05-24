@@ -325,6 +325,40 @@ void *Client_Handler_Thread(void *clientHandle)
             // Check if the server is active
             if (IsActive(server->ServerID, serverHandleList) == 0)
             {
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                response.iResponseErrorCode = CMD_ERROR_SERVER_UNAVAILABLE;
+                break;
+            }
+
+            printf(GRN "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n" reset, request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+            fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+            // Populate the response struct with Server IP and Port
+            snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);
+            response.iResponseServerID = server->ServerID;
+            break;
+        }
+        case CMD_INFO:
+        {
+            printf(GRN "[+]Client Handler Thread: Client %lu requested info for file %s\n" reset, client->ClientID, request.sRequestPath);
+            fprintf(logs, "[+]Client Handler Thread: Client %lu requested info for file %s\n", client->ClientID, request.sRequestPath);
+
+            // Do a path resolution
+            SERVER_HANDLE_STRUCT *server = ResolvePath(request.sRequestPath);
+
+            if (server == NULL)
+            {
+                printf(RED "[-]Client Handler Thread: Error in resolving path for client %lu\n" reset, client->ClientID);
+                fprintf(logs, "[-]Client Handler Thread: Error in resolving path for client %lu\n", client->ClientID);
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
+                break;
+            }
+
+            response.iResponseFlags = RESPONSE_FLAG_SUCCESS;
+
+            // Check if the server is active
+            if (IsActive(server->ServerID, serverHandleList) == 0)
+            {
                 // Switch to backup server
                 server = GetActiveBackUp(serverHandleList, server->backupServers);
                 if (server == NULL)
@@ -340,9 +374,11 @@ void *Client_Handler_Thread(void *clientHandle)
 
             printf(GRN "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n" reset, request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
             fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+
             // Populate the response struct with Server IP and Port
             snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);
             response.iResponseServerID = server->ServerID;
+            
             break;
         }
         case CMD_LIST:

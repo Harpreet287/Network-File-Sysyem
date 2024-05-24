@@ -95,6 +95,19 @@ typedef struct ACK_STRUCT
 {
 } ACK_STRUCT;
 
+// Path Information Struct
+typedef struct PATH_INFO_STRUCT
+{
+    char sPath[MAX_BUFFER_SIZE]; // Path
+    int iPathType; // Type of Path
+    int iPathSize; // Size of Path
+    int iPathPermission; // Permission of Path
+    int iPathCreationTime; // Creation Time of Path
+    int iPathModificationTime; // Modification Time of Path
+    int iPathAccessTime; // Access Time of Path
+    int iPathLinks; // Count of Links
+} PATH_INFO_STRUCT;
+
 // // Error Catch buffer
 // extern jmp_buf jmpbuffer;
 

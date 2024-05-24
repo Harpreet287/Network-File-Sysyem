@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <arpa/inet.h> //inet_addr
 
 // Custom Header Files
@@ -426,5 +428,219 @@ void Wcmd(char* arg, int ServerSockfd)
 }
 void Icmd(char* arg, int ServerSockfd)
 {
+    if(CheckNull(arg, ErrorMsg("NULL Argument\nUSAGE: INFO <Path>", CMD_ERROR_INVALID_ARGUMENTS)))
+    {
+        fprintf(Clientlog, "[-]Icmd: Invalid Argument [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    arg = strtok(arg, " \t\n");
+    if(strtok(NULL, " \t\n") != NULL)
+    {
+        printf(RED"Invalid Argument Count\nUSAGE: INFO <Path>\n"reset);
+        fprintf(Clientlog, "[-]Icmd: Invalid Argument Count [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    char* path = arg;
+    fprintf(Clientlog, "[+]Icmd: Describing Path %s [Time Stamp: %f]\n", path, GetCurrTime(Clock));
+
+    REQUEST_STRUCT req_struct;
+    REQUEST_STRUCT* req = &req_struct;
+    memset(req, 0, sizeof(REQUEST_STRUCT));
+
+    req->iRequestOperation = CMD_INFO;
+    req->iRequestClientID = iClientID;
+    strncpy(req->sRequestPath, path, MAX_BUFFER_SIZE);
+
+    int iBytesSent = send(ServerSockfd, req, sizeof(REQUEST_STRUCT), 0);
+    if(iBytesSent != sizeof(REQUEST_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to send request to server", CMD_ERROR_SEND_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to send request [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    RESPONSE_STRUCT res_struct;
+    RESPONSE_STRUCT* res = &res_struct;
+    memset(res, 0, sizeof(RESPONSE_STRUCT));
+
+    int iBytesRecv = recv(ServerSockfd, res, sizeof(RESPONSE_STRUCT), 0);
+    if(iBytesRecv != sizeof(RESPONSE_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to receive response from server", CMD_ERROR_RECV_FAILED);
+        printf(RED"%s"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to receive response [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    if(res->iResponseFlags == RESPONSE_FLAG_FAILURE)
+    {
+        char* Msg = ErrorMsg("Failed to get info of file", res->iResponseErrorCode);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to get info of file [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+    else if(res->iResponseFlags == BACKUP_RESPONSE)
+    {
+        printf(YEL"Corresponding Storage Server is down. Trying to get info from backup server\n"reset);
+        fprintf(Clientlog, "[+]Icmd: Corresponding Storage Server is down. Trying to get info from backup server [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+        // Modify the path to the backup path
+        memset(req->sRequestPath, 0, sizeof(req->sRequestPath));
+        snprintf(req->sRequestPath, MAX_BUFFER_SIZE, "./backup%s", path);
+    }
+
+    // The response data is the IP and Port of the storage server serving the file seperated by a space
+    char* ip = strtok(res->sResponseData, " ");
+    char* port = strtok(NULL, " ");
+
+    // Check if  IP and Port are valid
+    if(CheckNull(ip, ErrorMsg("Invalid IP received from server", CMD_ERROR_INVALID_RECV_VALUE)))
+    {
+        fprintf(Clientlog, "[-]Icmd: Invalid IP received from server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+    else if(CheckNull(port, ErrorMsg("Invalid Port received from server", CMD_ERROR_INVALID_RECV_VALUE)))
+    {
+        fprintf(Clientlog, "[-]Icmd: Invalid Port received from server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    // Connect to the storage server
+    int StorageSockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(CheckError(StorageSockfd, ErrorMsg("Failed to create socket", CMD_ERROR_SOCKET_FAILED)))
+    {
+        fprintf(Clientlog, "[-]Icmd: Failed to create socket [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    struct sockaddr_in StorageServer;
+    memset(&StorageServer, 0, sizeof(StorageServer));
+    StorageServer.sin_family = AF_INET;
+    StorageServer.sin_addr.s_addr = inet_addr(ip);
+    StorageServer.sin_port = htons(atoi(port));
+    memset(StorageServer.sin_zero, '\0', sizeof(StorageServer.sin_zero));
+
+    int iConnectStatus = connect(StorageSockfd, (struct sockaddr *)&StorageServer, sizeof(StorageServer));
+    if(CheckError(iConnectStatus, ErrorMsg("Failed to connect to storage server", CMD_ERROR_CONNECT_FAILED)))
+    {
+        fprintf(Clientlog, "[-]Icmd: Failed to connect to storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return;
+    }
+
+    // Send the request to the storage server
+    iBytesSent = send(StorageSockfd, req, sizeof(REQUEST_STRUCT), 0);
+    if(iBytesSent != sizeof(REQUEST_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to send request to storage server", CMD_ERROR_SEND_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to send request to storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    // Recieve the Confirmation from the server
+    iBytesRecv = recv(StorageSockfd, res, sizeof(RESPONSE_STRUCT), 0);
+    if(iBytesRecv != sizeof(RESPONSE_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to receive confirmation from storage server", CMD_ERROR_RECV_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to receive confirmation from storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+    else if(res->iResponseFlags == RESPONSE_FLAG_FAILURE)
+    {
+        char* Msg = ErrorMsg("Failed to get info of file", res->iResponseErrorCode);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to get info of file [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    // Receive Information About Path From Server
+    PATH_INFO_STRUCT path_info_struct;
+    PATH_INFO_STRUCT* path_info = &path_info_struct;
+    memset(path_info, 0, sizeof(PATH_INFO_STRUCT));
+
+    iBytesRecv = recv(StorageSockfd, path_info, sizeof(PATH_INFO_STRUCT), 0);
+    if(iBytesRecv != sizeof(PATH_INFO_STRUCT))
+    {
+        char* Msg = ErrorMsg("Failed to receive path info from storage server", CMD_ERROR_RECV_FAILED);
+        printf(RED"%s\n"reset, Msg);
+        fprintf(Clientlog, "[-]Icmd: Failed to receive path info from storage server [Time Stamp: %f]\n", GetCurrTime(Clock));
+        free(Msg);
+        return;
+    }
+
+    // Extract the information from the path_info struct
+    // Convert the permission to corresponding string
+    char permission[10];
+    memset(permission, 0, 10);
+    permission[0] = (path_info->iPathPermission & S_IRUSR) ? 'r' : '-';
+    permission[1] = (path_info->iPathPermission & S_IWUSR) ? 'w' : '-';
+    permission[2] = (path_info->iPathPermission & S_IXUSR) ? 'x' : '-';
+    permission[3] = (path_info->iPathPermission & S_IRGRP) ? 'r' : '-';
+    permission[4] = (path_info->iPathPermission & S_IWGRP) ? 'w' : '-';
+    permission[5] = (path_info->iPathPermission & S_IXGRP) ? 'x' : '-';
+    permission[6] = (path_info->iPathPermission & S_IROTH) ? 'r' : '-';
+    permission[7] = (path_info->iPathPermission & S_IWOTH) ? 'w' : '-';
+    permission[8] = (path_info->iPathPermission & S_IXOTH) ? 'x' : '-';
+    permission[9] = '\0';
+    
+
+    // Convert the type to corresponding string
+    char type[20];
+    memset(type, 0, 10);
+    switch (path_info->iPathType)
+    {
+    case __S_IFBLK: strcat(type, "Block Device"); break;
+    case __S_IFCHR: strcat(type, "Character Device"); break;
+    case __S_IFDIR: strcat(type, "Directory"); break;
+    case __S_IFIFO: strcat(type, "FIFO/PIPE"); break;
+    case __S_IFLNK: strcat(type, "Symbolic Link"); break;
+    case __S_IFREG: strcat(type, "Regular File"); break;
+    case __S_IFSOCK: strcat(type, "Socket"); break;    
+    default: strcat(type, "Unknown"); break;
+    }
+
+    // Convert the time to human readable format
+    char ctime[50];
+    memset(ctime, 0, 50);
+    struct tm* tm_info;
+    time_t time = path_info->iPathCreationTime;
+    tm_info = localtime(&time);
+    strftime(ctime, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+    char mtime[50];
+    memset(mtime, 0, 50);
+    time = path_info->iPathModificationTime;
+    tm_info = localtime(&time);
+    strftime(mtime, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+    char atime[50];
+    memset(atime, 0, 50);
+    time = path_info->iPathAccessTime;
+    tm_info = localtime(&time);
+    strftime(atime, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+    printf("--------------------------------------------------\n"BWHT);
+    printf("Path: %s\n", path_info->sPath);
+    printf("Type: %s\n", type);
+    printf("Size: %d Bytes\n", path_info->iPathSize);
+    printf("Permission: %s (%d)\n", permission, path_info->iPathPermission);
+    printf("Creation Time: %s\n", ctime);
+    printf("Modification Time: %s\n", mtime);
+    printf("Access Time: %s\n", atime);
+    printf("Number of Links: %d\n", path_info->iPathLinks);
+    printf(reset"--------------------------------------------------\n");
+
+    fprintf(Clientlog, "[+]Icmd: Path Information:\nPath: %s\nType: %s\nSize: %d Bytes\nPermission: %d (%s)\nCreation Time: %s\nModification Time: %s [Time Stamp: %f]\n", path_info->sPath, path_info->iPathType == 0 ? "File" :path_info->iPathType == 1? "Folder": "Executable", path_info->iPathSize, path_info->iPathPermission, permission, ctime, mtime, GetCurrTime(Clock));
+      
     return;
 }

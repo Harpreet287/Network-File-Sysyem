@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <dirent.h>
@@ -501,8 +502,6 @@ void *Client_Handler_Thread(void *arg)
         Client_Response_Struct->iResponseErrorCode = ERROR_CODE_SUCCESS;
         strncpy(Client_Response_Struct->sResponseData, "File Read Successfully", MAX_BUFFER_SIZE);
 
-        send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
-
         printf(GRN "[+]Client_Handler_Thread: File Read Successfully\n" CRESET);
         fprintf(Log_File, "[+]Client_Handler_Thread: File Read Successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
     }
@@ -605,18 +604,77 @@ void *Client_Handler_Thread(void *arg)
         Client_Response_Struct->iResponseErrorCode = ERROR_CODE_SUCCESS;
         strncpy(Client_Response_Struct->sResponseData, "File Written Successfully", MAX_BUFFER_SIZE);
 
-        send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
-
         printf(GRN "[+]Client_Handler_Thread: File Written Successfully\n" CRESET);
         fprintf(Log_File, "[+]Client_Handler_Thread: File Written Successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
         break;
+    }
+    case CMD_INFO:
+    {
+        // Check if the file is exposed by the server
+        char file_path[MAX_BUFFER_SIZE];
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
+        int present = trie_search(File_Trie, Client_Request_Struct->sRequestPath);
+        if(!present){
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+
+        // Remove first token from the path (Mount)
+        char* path = NULL;
+        __strtok_r(file_path, "/", &path);
+
+        PATH_INFO_STRUCT info;
+        PATH_INFO_STRUCT *info_struct = &info;
+        memset(info_struct, 0, sizeof(PATH_INFO_STRUCT));
+
+        // Check if path is a file, executable or a directory
+        struct stat file_stat;
+        int err = stat(path, &file_stat);
+
+        if (err < 0)
+        {
+            Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
+            strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+            printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
+            fprintf(Log_File, "[-]Client_Handler_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+
+        // send the response to the client
+        Client_Response_Struct->iResponseErrorCode = ERROR_CODE_SUCCESS;
+        strncpy(Client_Response_Struct->sResponseData, "File Info Fetched Successfully", MAX_BUFFER_SIZE);
+
+        send(Client_Socket, Client_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
+
+        // Populate Info Struct
+        strncpy(info_struct->sPath, path, MAX_BUFFER_SIZE);
+        info_struct->iPathType = file_stat.st_mode & __S_IFMT;
+        info_struct->iPathPermission = file_stat.st_mode & 0777; // 0777 is the mask for permissions in octal
+        info_struct->iPathSize = file_stat.st_size;
+        info_struct->iPathModificationTime = file_stat.st_mtime;
+        info_struct->iPathCreationTime = file_stat.st_ctime;
+        info_struct->iPathAccessTime = file_stat.st_atime;
+        info_struct->iPathLinks = file_stat.st_nlink; 
+        
+        // send the info struct to the client
+        send(Client_Socket, info_struct, sizeof(PATH_INFO_STRUCT), 0);
+
+        printf(GRN "[+]Client_Handler_Thread: File Info Fetched Successfully\n" CRESET);
+        fprintf(Log_File, "[+]Client_Handler_Thread: File Info Fetched Successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
+
+        return NULL;
     }
     case CMD_CREATE:
     case CMD_DELETE:
     case CMD_COPY:
     case CMD_RENAME:
     case CMD_LIST:
-    case CMD_INFO:
     case CMD_MOVE:
     {
         Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_AUTHENTICATION;
