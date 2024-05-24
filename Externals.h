@@ -33,13 +33,17 @@
 // Response Flags
 #define RESPONSE_FLAG_SUCCESS 0
 #define RESPONSE_FLAG_FAILURE -1
+#define BACKUP_RESPONSE 1
 
 // Request Flags
 #define REQUEST_FLAG_NONE 0
 #define REQUEST_FLAG_APPEND 0
 #define REQUEST_FLAG_OVERWRITE 1
 
-#define BACKUP_RESPONSE 1
+// ACK Flags
+#define ACK_FLAG_SUCCESS 0
+#define ACK_FLAG_FAILURE -1
+
 
 // Request and Response Structs
 /*
@@ -93,6 +97,9 @@ typedef struct STORAGE_SERVER_INIT_STRUCT
 // ACK Struct
 typedef struct ACK_STRUCT
 {
+    int iAckErrorCode; // Error Code
+    char sAckData[MAX_BUFFER_SIZE]; // Data
+    int iAckFlags; // Flags
 } ACK_STRUCT;
 
 // Path Information Struct

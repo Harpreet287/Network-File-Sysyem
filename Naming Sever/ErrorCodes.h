@@ -7,5 +7,6 @@
 #define CMD_ERROR_SERVER_UNAVAILABLE 203 // Server unavailable
 #define CMD_ERROR_BACKUP_UNAVAILABLE 204 // Backup unavailable
 #define ERROR_GETTING_MOUNT_PATHS 205    // Error getting mount paths
+#define CMD_ERROR_FWD_FAILED 206         // Forwarding request failed
 
 #endif // __ERRORCODES_H

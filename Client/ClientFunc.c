@@ -85,7 +85,7 @@ void Hcmd(char* arg, int ServerSockfd)
             "3. COPY <Source Path> <Destination Path>: Copies the file(s) from the source path to the destination path (Note: If source path is a Directory, Everthing Under the source path is copied)\n"
             "4. MOVE <Source Path> <Destination Path>: Moves the file(s) from the source path to the destination path (Note: If source path is a Directory, Everthing Under the source path is moved)\n"   
             "5. DELETE <Path>: Deletes the file at the given path (Note: If source path is a Directory, Everthing Under the source path is deleted)\n"
-            "6. CREATE <Flag> <Path>: Creates a file at the given path. Flag can set to either \'F\': File or to \'D\': Directory\n" 
+            "6. CREATE <Flag> <Path> <Name>: Creates a file at the given path. Flag can set to either \'F\': File or to \'D\': Directory\n" 
             "7. RENAME <Source Path> <Target Name>: Renames the file/directory at the source path to the target name\n"
             "8. INFO <Path>: Prints the information about the file/directory at the given path\n"
             "9. LIST <Path>: Lists the contents of the directory at the given path (Note: If no path is provided lists the entire mount directory\n"

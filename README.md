@@ -1,4 +1,4 @@
 Contributer: Prakhar Singhal
 
 ISSUES:
-1. INFO code TODO 
+1. CREATE, DELETE TODO

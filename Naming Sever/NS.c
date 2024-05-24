@@ -378,7 +378,7 @@ void *Client_Handler_Thread(void *clientHandle)
             // Populate the response struct with Server IP and Port
             snprintf(response.sResponseData, MAX_BUFFER_SIZE, "%s %d", server->sServerIP, server->sServerPort_Client);
             response.iResponseServerID = server->ServerID;
-            
+
             break;
         }
         case CMD_LIST:
@@ -410,6 +410,55 @@ void *Client_Handler_Thread(void *clientHandle)
 
             break;
         }
+
+        case CMD_RENAME:
+        {
+            printf(GRN "[+]Client Handler Thread: Client %lu requested to rename file %s\n" reset, client->ClientID, request.sRequestPath);
+            fprintf(logs, "[+]Client Handler Thread: Client %lu requested to rename file %s\n", client->ClientID, request.sRequestPath);
+
+            // Do a path resolution
+            SERVER_HANDLE_STRUCT *server = ResolvePath(request.sRequestPath);
+
+            if (server == NULL)
+            {
+                printf(RED "[-]Client Handler Thread: Error in resolving path for client %lu\n" reset, client->ClientID);
+                fprintf(logs, "[-]Client Handler Thread: Error in resolving path for client %lu\n", client->ClientID);
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                response.iResponseErrorCode = CMD_ERROR_PATH_NOT_FOUND;
+                break;
+            }
+
+            response.iResponseFlags = RESPONSE_FLAG_SUCCESS;
+
+            // Check if the server is active
+            if (IsActive(server->ServerID, serverHandleList) == 0)
+            {
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                response.iResponseErrorCode = CMD_ERROR_SERVER_UNAVAILABLE;
+                break;
+            }
+
+            // Populate the response struct with Server ID
+            response.iResponseServerID = server->ServerID;
+
+            printf(GRN "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n" reset, request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+            fprintf(logs, "[+]Client Handler Thread: Resolved path %s to server %lu (%s:%d)\n", request.sRequestPath, server->ServerID, server->sServerIP, server->sServerPort_Client);
+
+            // Forward the request to the server
+            int iSendStatus = send(server->sSocket_Write, &request, sizeof(request), 0);
+            if (CheckError(iSendStatus, "[-]Client Handler Thread: Error in sending request to server"))
+            {
+                printf(RED "[-]Client Handler Thread: Error in sending request to server for client %lu\n" reset, client->ClientID);
+                fprintf(logs, "[-]Client Handler Thread: Error in sending request to server for client %lu\n", client->ClientID);
+                response.iResponseFlags = RESPONSE_FLAG_FAILURE;
+                response.iResponseErrorCode = CMD_ERROR_FWD_FAILED;
+                break;
+            }
+
+            strncpy(response.sResponseData, "Request forwarded to server", MAX_BUFFER_SIZE);
+            break;
+        }
+
         default:
         {
             response.iResponseErrorCode = CMD_ERROR_INVALID_OPERATION;
@@ -615,7 +664,8 @@ void *Storage_Server_Handler_Thread(void *storageServerHandle)
         iconnectStatus = connect(iServerSocket, (struct sockaddr *)&server_address, sizeof(server_address));
         if (CheckError(iconnectStatus, "[-]Storage Server Handler Thread: Error in connecting to server."))
         {
-            if (tries > MAX_CONN_REQ){
+            if (tries > MAX_CONN_REQ)
+            {
                 printf(RED "[-]Storage Server Handler Thread: Error in connecting to server. Max tries reached\n" reset);
                 fprintf(logs, "[-]Storage Server Handler Thread: Error in connecting to server. Max tries reached [Time Stamp: %f]\n", GetCurrTime(Clock));
                 RemoveServer(GetServerID(server), serverHandleList);
