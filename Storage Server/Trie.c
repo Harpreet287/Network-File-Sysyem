@@ -12,7 +12,7 @@
  * @param None
  * @return a pointer to Reader_Writer_Lock_Object
  * @note the lock maintains a service queue to prevent starvation
-*/
+ */
 Reader_Writer_Lock *RW_Lock_Init()
 {
     Reader_Writer_Lock *Lock = (Reader_Writer_Lock *)malloc(sizeof(Reader_Writer_Lock));
@@ -21,7 +21,7 @@ Reader_Writer_Lock *RW_Lock_Init()
     pthread_mutex_init(&Lock->Read_Init_Lock, NULL);
     pthread_mutex_init(&Lock->Write_Lock, NULL);
 
-    return Lock;    
+    return Lock;
 }
 // Reader Accquire Lock
 void Read_Lock(Reader_Writer_Lock *Lock)
@@ -29,7 +29,7 @@ void Read_Lock(Reader_Writer_Lock *Lock)
     pthread_mutex_lock(&Lock->Service_Q_Lock);
     pthread_mutex_lock(&Lock->Read_Init_Lock);
     Lock->Reader_Count++;
-    if(Lock->Reader_Count == 1)
+    if (Lock->Reader_Count == 1)
     {
         pthread_mutex_lock(&Lock->Write_Lock);
     }
@@ -41,7 +41,7 @@ void Read_Unlock(Reader_Writer_Lock *Lock)
 {
     pthread_mutex_lock(&Lock->Read_Init_Lock);
     Lock->Reader_Count--;
-    if(Lock->Reader_Count == 0)
+    if (Lock->Reader_Count == 0)
     {
         pthread_mutex_unlock(&Lock->Write_Lock);
     }
@@ -60,13 +60,10 @@ void Write_Unlock(Reader_Writer_Lock *Lock)
     pthread_mutex_unlock(&Lock->Write_Lock);
 }
 
-
-
-
 unsigned int hash(char *path_token)
 {
     int hash = 0;
-    for(int i = 0; i < strlen(path_token); i++)
+    for (int i = 0; i < strlen(path_token); i++)
     {
         // Use polynomial rolling hash function
         hash = (hash * PRIME + path_token[i]) % MAX_SUB_FILES;
@@ -81,36 +78,41 @@ unsigned int hash(char *path_token)
  * @param cur_dir the current directory path
  * @return 0 on success, -1 on failure
  * @note This function is called as a subroutine of trie_paths
-*/
-int trie_paths_helper(Trie* file_trie, char* buffer, char* cur_dir){
-    if(file_trie == NULL)
+ */
+int trie_paths_helper(Trie *file_trie, char *buffer, char *cur_dir)
+{
+    if (file_trie == NULL)
     {
         return 0;
     }
-    
+
     // Remove '/' if it is the last character
-    if(cur_dir[strlen(cur_dir) - 1] == '/')
+    if (cur_dir[strlen(cur_dir) - 1] == '/')
     {
         cur_dir[strlen(cur_dir) - 1] = '\0';
     }
 
-    for(int i = 0; i < MAX_SUB_FILES; i++)
+    Read_Lock(file_trie->Lock);
+    for (int i = 0; i < MAX_SUB_FILES; i++)
     {
-        if(file_trie->children[i] != NULL)
+        if (file_trie->children[i] != NULL)
         {
             char path[MAX_BUFFER_SIZE];
             snprintf(path, MAX_BUFFER_SIZE, "%s/%s", cur_dir, file_trie->children[i]->path_token);
 
             strncat(buffer, path, MAX_BUFFER_SIZE);
             strcat(buffer, "\n");
+            Read_Unlock(file_trie->Lock);
             int status = trie_paths_helper(file_trie->children[i], buffer, path);
-            if(CheckError(status , "trie_paths_helper: Error printing to buffer"))
+            Read_Lock(file_trie->Lock);
+            if (CheckError(status, "trie_paths_helper: Error printing to buffer"))
             {
-                fprintf(Log_File, "trie_paths_helper: Error printing to buffer [Time Stamp: %f]\n",GetCurrTime(Clock));
+                fprintf(Log_File, "trie_paths_helper: Error printing to buffer [Time Stamp: %f]\n", GetCurrTime(Clock));
                 return -1;
             }
         }
     }
+    Read_Unlock(file_trie->Lock);
     return 0;
 }
 
@@ -119,12 +121,12 @@ int trie_paths_helper(Trie* file_trie, char* buffer, char* cur_dir){
  * @param None
  * @return a pointer to Trie_Node_Object
  * @note called as a subroutine of trie_insert
-*/
-Trie* trie_init()
+ */
+Trie *trie_init()
 {
-    Trie* file_trie = (Trie*)malloc(sizeof(Trie));
+    Trie *file_trie = (Trie *)malloc(sizeof(Trie));
     file_trie->path_token[0] = '\0';
-    for(int i = 0; i < MAX_SUB_FILES; i++)
+    for (int i = 0; i < MAX_SUB_FILES; i++)
     {
         file_trie->children[i] = NULL;
     }
@@ -138,27 +140,33 @@ Trie* trie_init()
  * @param file_trie the trie to be inserted into
  * @param path the path to be inserted
  * @return 0 on success, -1 on failure
-*/
-int trie_insert(Trie* file_trie, char *path)
+ */
+int trie_insert(Trie *file_trie, char *path)
 {
-    char *path_token = strtok(path, "/"); 
+    char *path_token = strtok(path, "/");
     // Ignore the first token as it is the cwd
     path_token = strtok(NULL, "/");
 
-    Trie* curr = file_trie;
-    while(path_token != NULL)
+    Trie *curr = file_trie;
+    while (path_token != NULL)
     {
         int index = hash(path_token);
-        if(curr->children[index] == NULL)
+        Read_Lock(curr->Lock);
+        if (curr->children[index] == NULL)
         {
+            Read_Unlock(curr->Lock);
+            Write_Lock(curr->Lock);
             curr->children[index] = trie_init();
-            if(CheckNull(curr->children[index], "trie_insert: Error initializing trie node"))
+            if (CheckNull(curr->children[index], "trie_insert: Error initializing trie node"))
             {
-                fprintf(Log_File, "trie_insert: Error initializing trie node [Time Stamp: %f]\n",GetCurrTime(Clock));
+                Write_Unlock(curr->Lock);
+                fprintf(Log_File, "trie_insert: Error initializing trie node [Time Stamp: %f]\n", GetCurrTime(Clock));
                 return -1;
             }
             strncpy(curr->children[index]->path_token, path_token, TOKEN_SIZE);
+            Write_Unlock(curr->Lock);
         }
+        Read_Unlock(curr->Lock);
         curr = curr->children[index];
         path_token = strtok(NULL, "/");
     }
@@ -171,18 +179,18 @@ int trie_insert(Trie* file_trie, char *path)
  * @param path the path to be inserted
  * @return a pointer to the lock corresponding to the path
  * @note returns NULL if path not found
-*/
-Reader_Writer_Lock* trie_get_path_lock(Trie* file_trie, char* path)
+ */
+Reader_Writer_Lock *trie_get_path_lock(Trie *file_trie, char *path)
 {
-    char *path_token = strtok(path, "/"); 
+    char *path_token = strtok(path, "/");
     // Ignore the first token as it is the cwd
     path_token = strtok(NULL, "/");
 
-    Trie* curr = file_trie;
-    while(path_token != NULL)
+    Trie *curr = file_trie;
+    while (path_token != NULL)
     {
         int index = hash(path_token);
-        if(curr->children[index] == NULL)
+        if (curr->children[index] == NULL)
         {
             return NULL;
         }
@@ -197,48 +205,61 @@ Reader_Writer_Lock* trie_get_path_lock(Trie* file_trie, char* path)
  * @param file_trie the trie to be deleted from
  * @param path the path to be deleted
  * @return 0 on success, -1 on failure
-*/
-int trie_delete(Trie* file_trie, char *path)
+ */
+int trie_delete(Trie *file_trie, char *path)
 {
-    char *path_token = strtok(path, "/"); 
+    char *path_token = strtok(path, "/");
     // Ignore the first token as it is the cwd
     path_token = strtok(NULL, "/");
 
-    Trie* curr = file_trie;
-    while(path_token != NULL)
+    Trie *curr = file_trie;
+    while (path_token != NULL)
     {
         int index = hash(path_token);
-        if(curr->children[index] == NULL)
+        Read_Lock(curr->Lock);
+        if (curr->children[index] == NULL)
         {
+            Read_Unlock(curr->Lock);
             return -1;
         }
         path_token = strtok(NULL, "/");
-        if(path_token == NULL)
+        if (path_token == NULL)
         {
-            Trie* temp = curr->children[index];
+            Trie *temp = curr->children[index];
+
+            Read_Unlock(curr->Lock);
+            Write_Lock(curr->Lock);
             curr->children[index] = NULL;
+            Write_Unlock(curr->Lock);
+
             curr = temp;
         }
         else
         {
+            Trie *temp = curr;
             curr = curr->children[index];
+            Read_Unlock(temp->Lock);
         }
     }
-    
+
     // Delete all children
-    for(int i = 0; i < MAX_SUB_FILES; i++)
+    Write_Lock(curr->Lock);
+    for (int i = 0; i < MAX_SUB_FILES; i++)
     {
-        if(curr->children[i] != NULL)
+        if (curr->children[i] != NULL)
         {
             int status = trie_destroy(curr->children[i]);
-            if(CheckError(status, "trie_delete: Error deleting children"))
+            if (CheckError(status, "trie_delete: Error deleting children"))
             {
-                fprintf(Log_File, "trie_delete: Error deleting children [Time Stamp: %f]\n",GetCurrTime(Clock));
+                fprintf(Log_File, "trie_delete: Error deleting children [Time Stamp: %f]\n", GetCurrTime(Clock));
                 return -1;
             }
             curr->children[i] = NULL;
         }
     }
+    // dont need to unlock as the lock is destroyed
+    // Write_Unlock(curr->Lock);
+
     // Delete the current node
     free(curr);
     return 0;
@@ -249,70 +270,78 @@ int trie_delete(Trie* file_trie, char *path)
  * @param file_trie the trie to be destroyed
  * @return 0 on success, -1 on failure
  * @note This function is called as a subroutine of trie_delete
-*/
-int trie_destroy(Trie* file_trie)
+ */
+int trie_destroy(Trie *file_trie)
 {
+    Write_Lock(file_trie->Lock);
     // Delete all children
-    for(int i = 0; i < MAX_SUB_FILES; i++)
+    for (int i = 0; i < MAX_SUB_FILES; i++)
     {
-        if(file_trie->children[i] != NULL)
+        if (file_trie->children[i] != NULL)
         {
             int status = trie_destroy(file_trie->children[i]);
-            if(CheckError(status, "trie_destroy: Error deleting children"))
+            if (CheckError(status, "trie_destroy: Error deleting children"))
             {
-                fprintf(Log_File, "trie_destroy: Error deleting children [Time Stamp: %f]\n",GetCurrTime(Clock));
+                fprintf(Log_File, "trie_destroy: Error deleting children [Time Stamp: %f]\n", GetCurrTime(Clock));
                 return -1;
             }
             file_trie->children[i] = NULL;
         }
     }
+
+    // Dont need to unlock as the lock is destroyed
+    // Write_Unlock(file_trie->Lock);
+
     // Delete the current node
     free(file_trie);
     return 0;
-
-} 
+}
 
 /**
  * @brief Outputs the trie structure to a buffer
  * @param file_trie the trie to be printed
  * @param buffer the buffer to be printed to
  * @return 0 on success, -1 on failure
-*/
-int trie_print(Trie* file_trie, char* buffer, int level)
+ */
+int trie_print(Trie *file_trie, char *buffer, int level)
 {
-    if(file_trie == NULL)
+    if (file_trie == NULL)
     {
         return 0;
     }
-    
+
     // Print the current node
     int status;
-    for(int i = 0; i < level; i++)
+    for (int i = 0; i < level; i++)
     {
-        if (i%2 == 0)
-            sprintf(buffer,"%s|",buffer);
+        if (i % 2 == 0)
+            sprintf(buffer, "%s|", buffer);
         else
-            sprintf(buffer,"%s  ",buffer);
+            sprintf(buffer, "%s  ", buffer);
     }
-    status = sprintf(buffer, "%s|-%s\n", buffer, file_trie->path_token);    
-    if(CheckError(status , "trie_print: Error printing to buffer"))
+    Read_Lock(file_trie->Lock);
+    status = sprintf(buffer, "%s|-%s\n", buffer, file_trie->path_token);
+    if (CheckError(status, "trie_print: Error printing to buffer"))
     {
-        fprintf(Log_File, "trie_print: Error printing to buffer [Time Stamp: %f]\n",GetCurrTime(Clock));
+        Read_Unlock(file_trie->Lock);
+        fprintf(Log_File, "trie_print: Error printing to buffer [Time Stamp: %f]\n", GetCurrTime(Clock));
         return -1;
     }
 
-    for(int i = 0; i < MAX_SUB_FILES; i++)
+    for (int i = 0; i < MAX_SUB_FILES; i++)
     {
-        if(file_trie->children[i] != NULL)
+        if (file_trie->children[i] != NULL)
         {
             status = trie_print(file_trie->children[i], buffer, level + 1);
-            if(CheckError(status , "trie_print: Error printing to buffer"))
+            if (CheckError(status, "trie_print: Error printing to buffer"))
             {
-                fprintf(Log_File, "trie_print: Error printing to buffer [Time Stamp: %f]\n",GetCurrTime(Clock));
+                fprintf(Log_File, "trie_print: Error printing to buffer [Time Stamp: %f]\n", GetCurrTime(Clock));
                 return -1;
             }
         }
     }
+
+    Read_Unlock(file_trie->Lock);
     return 0;
 }
 
@@ -321,10 +350,10 @@ int trie_print(Trie* file_trie, char* buffer, int level)
  * @param file_trie the trie to be printed
  * @param buffer the buffer to be printed to
  * @return 0 on success, -1 on failure
-*/
-int trie_paths(Trie* file_trie, char* buffer, char* root)
+ */
+int trie_paths(Trie *file_trie, char *buffer, char *root)
 {
-    if(file_trie == NULL)
+    if (file_trie == NULL)
     {
         return 0;
     }
@@ -334,55 +363,62 @@ int trie_paths(Trie* file_trie, char* buffer, char* root)
     strncpy(root_path, root, MAX_BUFFER_SIZE);
 
     // traverse to the root
-    Trie* curr = file_trie;
-    char* path_token = strtok(root, "/");
+    Trie *curr = file_trie;
+    char *path_token = strtok(root, "/");
     // Ignore the first token as it is the cwd
     path_token = strtok(NULL, "/");
-    while(path_token != NULL)
+    while (path_token != NULL)
     {
         int index = hash(path_token);
-        if(CheckNull(curr->children[index], "trie_paths: Error traversing to root"))
+        Read_Lock(curr->Lock);
+        if (CheckNull(curr->children[index], "trie_paths: Error traversing to root"))
         {
-            fprintf(Log_File, "trie_paths: Error traversing to root [Time Stamp: %f]\n",GetCurrTime(Clock));
+            Read_Unlock(curr->Lock);
+            fprintf(Log_File, "trie_paths: Error traversing to root [Time Stamp: %f]\n", GetCurrTime(Clock));
             return -1;
         }
+        
+        Trie *temp = curr;
         curr = curr->children[index];
+        Read_Unlock(temp->Lock);
         path_token = strtok(NULL, "/");
     }
 
-
     int status = trie_paths_helper(curr, buffer, root_path);
-    if(CheckError(status , "trie_paths: Error printing to buffer"))
+    if (CheckError(status, "trie_paths: Error printing to buffer"))
     {
-        fprintf(Log_File, "trie_paths: Error printing to buffer [Time Stamp: %f]\n",GetCurrTime(Clock));
+        fprintf(Log_File, "trie_paths: Error printing to buffer [Time Stamp: %f]\n", GetCurrTime(Clock));
         return -1;
     }
     return 0;
-
 }
 
 /**
  * @brief Searches for a path in the trie
  * @param file_trie the trie to be searched
  * @param path the path to be searched
- * @return 1 if found, 0 if not found 
+ * @return 1 if found, 0 if not found
  * @note modifies the path string provided
-*/
-int trie_search(Trie* file_trie, char* path)
+ */
+int trie_search(Trie *file_trie, char *path)
 {
-    char *path_token = strtok(path, "/"); 
+    char *path_token = strtok(path, "/");
     // Ignore the first token as it is the cwd
     path_token = strtok(NULL, "/");
 
-    Trie* curr = file_trie;
-    while(path_token != NULL)
+    Trie *curr = file_trie;
+    while (path_token != NULL)
     {
         int index = hash(path_token);
-        if(curr->children[index] == NULL)
+        Read_Lock(curr->Lock);
+        if (curr->children[index] == NULL)
         {
+            Read_Unlock(curr->Lock);
             return 0;
         }
+        Trie *temp = curr;
         curr = curr->children[index];
+        Read_Unlock(temp->Lock);
         path_token = strtok(NULL, "/");
     }
     return 1;

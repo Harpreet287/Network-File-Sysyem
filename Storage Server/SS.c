@@ -292,6 +292,62 @@ void *NS_Listner_Thread(void *arg)
         printf("Request Path: %s\n", NS_Response_Struct->sRequestPath);
         printf("Request Flag: %d\n", NS_Response_Struct->iRequestFlags);
         printf("Request Client ID: %lu\n", NS_Response_Struct->iRequestClientID);
+
+        RESPONSE_STRUCT NS_Request;
+        RESPONSE_STRUCT *NS_Request_Struct = &NS_Request;
+        memset(NS_Request_Struct, 0, sizeof(RESPONSE_STRUCT));
+        NS_Request_Struct->iResponseOperation = NS_Response_Struct->iRequestOperation;
+        NS_Request_Struct->iResponseFlags = NS_Response_Struct->iRequestFlags;
+        NS_Request_Struct->iResponseServerID = Server_ID;
+
+        switch (NS_Response_Struct->iRequestOperation)
+        {
+            case CMD_READ:
+            {
+                break;
+            }
+            case CMD_WRITE:
+            {
+                break;
+            }
+            case CMD_INFO:
+            {
+                break;
+            }
+            case CMD_CREATE:
+            {
+                break;
+            }
+            case CMD_DELETE:
+            {
+                break;
+            }
+            case CMD_COPY:
+            {
+                break;
+            }
+            case CMD_RENAME:
+            {
+                break;
+            }
+            case CMD_LIST:
+            {
+                break;
+            }
+            case CMD_MOVE:
+            {
+                break;
+            }
+            default:
+            {
+                NS_Request_Struct->iResponseErrorCode = ERROR_INVALID_OPERATION;
+                strncpy(NS_Request_Struct->sResponseData, "Invalid Operation", MAX_BUFFER_SIZE);
+                printf(RED "[-]NS_Listner_Thread: Invalid Operation\n" CRESET);
+                fprintf(Log_File, "[-]NS_Listner_Thread: Invalid Operation [Time Stamp: %f]\n", GetCurrTime(Clock));
+                break;
+            }
+        }
+        
     }
     return NULL;
 }
@@ -455,14 +511,23 @@ void *Client_Handler_Thread(void *arg)
             break;
         }
 
+
+        // Get the corresponding Lock for the file
+        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
         // Remove first token from the path (Mount)
         char* path = NULL;
         __strtok_r(file_path, "/", &path);
 
+        Read_Lock(lock);
         // Open the file and read it's contents
         FILE *file = fopen(path, "r");
         if (CheckNull(file, "[-]Client_Handler_Thread: Error in opening file"))
         {
+            Read_Unlock(lock);
             Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_ACCESS;
             strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
             printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
@@ -485,6 +550,7 @@ void *Client_Handler_Thread(void *arg)
             memset(buffer, 0, MAX_BUFFER_SIZE);
         }
 
+        Read_Unlock(lock);
         // send the stop sequence to the client to indicate end of file
         send(Client_Socket, stop_sequence, MAX_BUFFER_SIZE, 0);
 
@@ -549,6 +615,12 @@ void *Client_Handler_Thread(void *arg)
             break;
         }
 
+        // Get the corresponding Lock for the file
+        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
         // Remove first token from the path (Mount)
         char* path = NULL;
         __strtok_r(file_path, "/", &path);
@@ -556,6 +628,7 @@ void *Client_Handler_Thread(void *arg)
         // Open the file and write to it with the specified flag
         char* mode = (write_flag == REQUEST_FLAG_OVERWRITE) ? "w" : "a";
 
+        Write_Lock(lock);
         FILE *file = fopen(path, mode);
         if (CheckNull(file, "[-]Client_Handler_Thread: Error in opening file"))
         {
@@ -588,6 +661,7 @@ void *Client_Handler_Thread(void *arg)
             memset(buffer, 0, MAX_BUFFER_SIZE);
         }
 
+        Write_Unlock(lock);
         int err = ferror(file);
         if (err)
         {
@@ -625,6 +699,12 @@ void *Client_Handler_Thread(void *arg)
             break;
         }
 
+        // Get the corresponding Lock for the file
+        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+
+        memset(file_path, 0, MAX_BUFFER_SIZE);
+        strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
+
         // Remove first token from the path (Mount)
         char* path = NULL;
         __strtok_r(file_path, "/", &path);
@@ -633,9 +713,11 @@ void *Client_Handler_Thread(void *arg)
         PATH_INFO_STRUCT *info_struct = &info;
         memset(info_struct, 0, sizeof(PATH_INFO_STRUCT));
 
+        Read_Lock(lock);
         // Check if path is a file, executable or a directory
         struct stat file_stat;
         int err = stat(path, &file_stat);
+        Read_Unlock(lock);
 
         if (err < 0)
         {

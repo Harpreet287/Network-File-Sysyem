@@ -202,7 +202,7 @@ void INThandler()
  * @brief Checks if the input is sanitized 
  * @param cInput The input to be sanitized
  * @return 0 if the input is sanitized, 1 otherwise
- * @note This function checks for null, empty string, null character
+ * @note This function checks for null, empty string, null character, newline character
 */
 int sanitize(char *cInput)
 {
@@ -221,7 +221,11 @@ int sanitize(char *cInput)
         fprintf(Clientlog, "[-]sanitize: Null character\n");
         return 1;
     }   
-
+    if(cInput[0] == '\n')
+    {
+        fprintf(Clientlog, "[-]sanitize: Newline character\n");
+        return 1;
+    }
     return 0;
 }
 
