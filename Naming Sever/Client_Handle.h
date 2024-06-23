@@ -23,11 +23,12 @@ typedef struct CLIENT_HANDLE_LIST_STRUCT
     pthread_mutex_t clientListMutex;
 } CLIENT_HANDLE_LIST_STRUCT;
 
-
 // Function Prototypes
-CLIENT_HANDLE_LIST_STRUCT* InitializeClientHandleList();
+CLIENT_HANDLE_LIST_STRUCT *InitializeClientHandleList();
 int AddClient(CLIENT_HANDLE_STRUCT *clientHandle, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
 int RemoveClient(unsigned long clientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
 
 unsigned long GetClientID(CLIENT_HANDLE_STRUCT *clientHandle);
+CLIENT_HANDLE_STRUCT *GetClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList);
+
 #endif

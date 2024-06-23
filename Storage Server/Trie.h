@@ -38,6 +38,7 @@ int trie_insert(Trie* file_trie, char* path); // Insert a path into the trie
 Reader_Writer_Lock* trie_get_path_lock(Trie* file_trie, char* path); // Get correspomding lock for a path in trie
 int trie_delete(Trie* file_trie, char *path); // Delete a path from the trie (deletes all children path)
 int trie_destroy(Trie* file_trie); // Destroy the trie on shutdown
+int trie_rename(Trie* file_trie, char* old_path, char* new_token); // Rename a path in the trie
 
 int trie_search(Trie* file_trie, char* path); // Search for a path in the trie
 int trie_print(Trie* file_trie, char* buffer, int level); // Print the trie

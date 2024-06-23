@@ -416,6 +416,10 @@ void *Client_Handler_Thread(void *clientHandle)
             printf(GRN "[+]Client Handler Thread: Client %lu requested to rename file %s\n" reset, client->ClientID, request.sRequestPath);
             fprintf(logs, "[+]Client Handler Thread: Client %lu requested to rename file %s\n", client->ClientID, request.sRequestPath);
 
+            char path[MAX_BUFFER_SIZE];
+            strncpy(path, request.sRequestPath, MAX_BUFFER_SIZE);
+            strtok(path, " ");
+
             // Do a path resolution
             SERVER_HANDLE_STRUCT *server = ResolvePath(request.sRequestPath);
 
@@ -686,9 +690,10 @@ void *Storage_Server_Handler_Thread(void *storageServerHandle)
 
     while (1)
     {
-        // Receive the request from the server
-        REQUEST_STRUCT request;
-        int iRecvStatus = recv(server->sSocket_Write, &request, sizeof(request), 0);
+        // Receive the response from the server
+        RESPONSE_STRUCT response_struct;
+        RESPONSE_STRUCT *response = &response_struct;
+        int iRecvStatus = recv(server->sSocket_Write, response, sizeof(response_struct), 0);
         if (CheckError(iRecvStatus, "[-]Storage Server Handler Thread: Error in receiving data from server"))
         {
             RemoveServer(GetServerID(server), serverHandleList);
@@ -712,7 +717,65 @@ void *Storage_Server_Handler_Thread(void *storageServerHandle)
             return NULL;
         }
 
-        // Handle the request (Generate a response)
+        // Handle the request (Forward the response to respective client/server)
+        printf(GRN "[+]Storage Server Handler Thread: Request received from server %lu\n" reset, server->ServerID);
+        fprintf(logs, "[+]Storage Server Handler Thread: Request received from server %lu [Time Stamp: %f]\n", server->ServerID, GetCurrTime(Clock));
+
+        switch (response->iResponseOperation)
+        {
+        case CMD_RENAME:
+        {
+            ACK_STRUCT ack_struct;
+            ACK_STRUCT *ack = &ack_struct;
+
+            unsigned long clientID;
+
+            char data[MAX_BUFFER_SIZE];
+            char *token;
+            strncpy(data, response->sResponseData, MAX_BUFFER_SIZE);
+            __strtok_r(data, " ", &token);
+
+            clientID = (unsigned long)(atoll(token));
+
+            ack->iAckErrorCode = response->iResponseErrorCode;
+            strncpy(ack->sAckData, data, MAX_BUFFER_SIZE);
+            ack->iAckFlags = response->iResponseFlags;
+
+            if (response->iResponseErrorCode)
+            {
+                printf(RED "[-]Storage Server Handler Thread: Error in renaming file\n" reset);
+                fprintf(logs, "[-]Storage Server Handler Thread: Error in renaming file [Time Stamp: %f]\n", GetCurrTime(Clock));
+            }
+            else
+            {
+                printf(GRN "[+]Storage Server Handler Thread: File renamed successfully\n" reset);
+                fprintf(logs, "[+]Storage Server Handler Thread: File renamed successfully [Time Stamp: %f]\n", GetCurrTime(Clock));
+            }
+
+            // forward to corresponding client
+            // find the client
+            CLIENT_HANDLE_STRUCT *client = GetClient(clientID, clientHandleList);
+            if (client == NULL)
+            {
+                printf(RED "[-]Storage Server Handler Thread: Error in finding client\n" reset);
+                fprintf(logs, "[-]Storage Server Handler Thread: Error in finding client [Time Stamp: %f]\n", GetCurrTime(Clock));
+                break;
+            }
+
+            int iSendStatus = send(client->iClientSocket, ack, sizeof(ack_struct), 0);
+            if (CheckError(iSendStatus, "[-]Storage Server Handler Thread: Error in sending data to client"))
+            {
+                fprintf(logs, "[-]Storage Server Handler Thread: Error in sending data to client [Time Stamp: %f]\n", GetCurrTime(Clock));
+                RemoveClient(clientID, clientHandleList);
+                close(client->iClientSocket);
+                break;
+            }
+
+            printf(GRN "[+]Storage Server Handler Thread: Sent ack to client %lu\n" reset, clientID);
+            fprintf(logs, "[+]Storage Server Handler Thread: Sent ack to client %lu [Time Stamp: %f]\n", clientID, GetCurrTime(Clock));
+            break;
+        }
+        }
     }
 
     // Disconnect gracefully

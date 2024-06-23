@@ -297,6 +297,57 @@ int trie_destroy(Trie *file_trie)
     return 0;
 }
 
+
+/**
+ * @brief Renames a path in the trie
+ * @param file_trie the trie to be renamed
+ * @param old_path the old path to be renamed
+ * @param new_token the new token to be renamed to
+ * @return 0 on success, -1 on failure
+ * @note the last token in the path is renamed
+ */
+int trie_rename(Trie *file_trie, char *old_path, char *new_token)
+{
+    char *path_token = strtok(old_path, "/");
+    // Ignore the first token as it is the cwd
+    path_token = strtok(NULL, "/");
+
+    Trie *curr = file_trie;
+    Trie *prev = NULL;
+    int cur_index = -1;
+    while (path_token != NULL)
+    {
+        int index = hash(path_token);
+        Read_Lock(curr->Lock);
+        if (curr->children[index] == NULL)
+        {
+            Read_Unlock(curr->Lock);
+            return -1;
+        }
+        cur_index = index;
+        prev = curr;
+        curr = curr->children[index];
+        path_token = strtok(NULL, "/");
+    }
+
+    Write_Lock(curr->Lock);
+    int index = hash(new_token);
+    if (prev->children[index] == NULL)
+    {
+        prev->children[cur_index] = NULL;
+        prev->children[index] = curr;
+        strncpy(prev->children[index]->path_token, new_token, TOKEN_SIZE);
+        Write_Unlock(curr->Lock);
+        return 0;
+    }
+    else
+    {
+        Write_Unlock(curr->Lock);
+        return -1;
+    }
+    return 0;
+}
+
 /**
  * @brief Outputs the trie structure to a buffer
  * @param file_trie the trie to be printed
@@ -377,7 +428,7 @@ int trie_paths(Trie *file_trie, char *buffer, char *root)
             fprintf(Log_File, "trie_paths: Error traversing to root [Time Stamp: %f]\n", GetCurrTime(Clock));
             return -1;
         }
-        
+
         Trie *temp = curr;
         curr = curr->children[index];
         Read_Unlock(temp->Lock);

@@ -115,5 +115,41 @@ int RemoveClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandle
     printf(GRN"[+]RemoveClient: Client-%lu (%s:%d) removed from client list\n"reset, clientHandle->ClientID, clientHandle->sClientIP, clientHandle->sClientPort);
     fprintf(logs, "[+]RemoveClient: Client-%lu (%s:%d) removed from client list [Time Stamp: %f]\n", clientHandle->ClientID, clientHandle->sClientIP, clientHandle->sClientPort, GetCurrTime(Clock));
 }
+/**
+ * @brief Gets the client handle of the client.
+ * @param ClientID The ID of the client.
+ * @param clientHandleList The list of client handles.
+ * @return The client handle of the client if found, otherwise NULL.
+ */
+CLIENT_HANDLE_STRUCT* GetClient(unsigned long ClientID, CLIENT_HANDLE_LIST_STRUCT *clientHandleList)
+{
+    pthread_mutex_lock(&clientHandleList->clientListMutex);
+    if(clientHandleList->iClientCount == 0)
+    {
+        pthread_mutex_unlock(&clientHandleList->clientListMutex);
+        printf(RED"[-]GetClient: No clients to get\n"reset);
+        fprintf(logs, "[-]GetClient: No clients to get [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return NULL;
+    }
 
+    // Find the client
+    CLIENT_HANDLE_STRUCT *clientHandle = NULL;
+    for(int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if(clientHandleList->clientList[i].ClientID == ClientID)
+        {
+            clientHandle = &clientHandleList->clientList[i];
+            break;
+        }
+    }
 
+    if(CheckNull(clientHandle, "[-]GetClient: Client not found"))
+    {
+        pthread_mutex_unlock(&clientHandleList->clientListMutex);
+        fprintf(logs, "[-]GetClient: Client not found [Time Stamp: %f]\n", GetCurrTime(Clock));
+        return NULL;
+    }
+
+    pthread_mutex_unlock(&clientHandleList->clientListMutex);
+    return clientHandle;
+}

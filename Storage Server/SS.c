@@ -268,11 +268,11 @@ void *NS_Listner_Thread(void *arg)
 
     while (IsSocketConnected(NS_Client_Socket))
     {
-        REQUEST_STRUCT NS_Response;
-        REQUEST_STRUCT *NS_Response_Struct = &NS_Response;
+        REQUEST_STRUCT NS_Response_Struct;
+        REQUEST_STRUCT *NS_Response = &NS_Response_Struct;
 
         // Receive the request from the Name Server
-        int err = recv(NS_Client_Socket, NS_Response_Struct, sizeof(RESPONSE_STRUCT), 0);
+        int err = recv(NS_Client_Socket, NS_Response, sizeof(RESPONSE_STRUCT), 0);
         if (CheckError(err, "[-]NS_Listner_Thread: Error in receiving data from Name Server"))
         {
             fprintf(Log_File, "[-]NS_Listner_Thread: Error in receiving data from Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
@@ -288,66 +288,133 @@ void *NS_Listner_Thread(void *arg)
         // Print the request received from the Name Server
         printf(GRN "[+]NS_Listner_Thread: Request Received from Name Server\n" CRESET);
         fprintf(Log_File, "[+]NS_Listner_Thread: Request Received from Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
-        printf("Request Operation: %d\n", NS_Response_Struct->iRequestOperation);
-        printf("Request Path: %s\n", NS_Response_Struct->sRequestPath);
-        printf("Request Flag: %d\n", NS_Response_Struct->iRequestFlags);
-        printf("Request Client ID: %lu\n", NS_Response_Struct->iRequestClientID);
+        printf("Request Operation: %d\n", NS_Response->iRequestOperation);
+        printf("Request Path: %s\n", NS_Response->sRequestPath);
+        printf("Request Flag: %d\n", NS_Response->iRequestFlags);
+        printf("Request Client ID: %lu\n", NS_Response->iRequestClientID);
 
-        RESPONSE_STRUCT NS_Request;
-        RESPONSE_STRUCT *NS_Request_Struct = &NS_Request;
-        memset(NS_Request_Struct, 0, sizeof(RESPONSE_STRUCT));
-        NS_Request_Struct->iResponseOperation = NS_Response_Struct->iRequestOperation;
-        NS_Request_Struct->iResponseFlags = NS_Response_Struct->iRequestFlags;
-        NS_Request_Struct->iResponseServerID = Server_ID;
+        RESPONSE_STRUCT NS_Request_Struct;
+        RESPONSE_STRUCT *NS_Request = &NS_Request_Struct;
+        memset(NS_Request, 0, sizeof(RESPONSE_STRUCT));
+        NS_Request->iResponseOperation = NS_Response->iRequestOperation;
+        NS_Request->iResponseFlags = NS_Response->iRequestFlags;
+        NS_Request->iResponseServerID = Server_ID;
 
-        switch (NS_Response_Struct->iRequestOperation)
+        switch (NS_Response->iRequestOperation)
         {
-            case CMD_READ:
-            {
-                break;
-            }
-            case CMD_WRITE:
-            {
-                break;
-            }
-            case CMD_INFO:
-            {
-                break;
-            }
-            case CMD_CREATE:
-            {
-                break;
-            }
-            case CMD_DELETE:
-            {
-                break;
-            }
-            case CMD_COPY:
-            {
-                break;
-            }
-            case CMD_RENAME:
-            {
-                break;
-            }
-            case CMD_LIST:
-            {
-                break;
-            }
-            case CMD_MOVE:
-            {
-                break;
-            }
-            default:
-            {
-                NS_Request_Struct->iResponseErrorCode = ERROR_INVALID_OPERATION;
-                strncpy(NS_Request_Struct->sResponseData, "Invalid Operation", MAX_BUFFER_SIZE);
-                printf(RED "[-]NS_Listner_Thread: Invalid Operation\n" CRESET);
-                fprintf(Log_File, "[-]NS_Listner_Thread: Invalid Operation [Time Stamp: %f]\n", GetCurrTime(Clock));
-                break;
-            }
+        case CMD_READ:
+        {
+            // relsove the path and send the contents of file in a single buffer
+
+            break;
         }
-        
+        case CMD_WRITE:
+        {
+            break;
+        }
+        case CMD_INFO:
+        {
+            break;
+        }
+        case CMD_CREATE:
+        {
+            break;
+        }
+        case CMD_DELETE:
+        {
+            break;
+        }
+        case CMD_COPY:
+        {
+            break;
+        }
+        case CMD_RENAME:
+        {
+            // resolve the path and rename requested path to new path
+            // send an ack to server after completion
+
+            char *file_path = NS_Response->sRequestPath;
+            char *new_name = __strtok_r(file_path, " ", &file_path);
+
+            int present = trie_search(File_Trie, file_path);
+            if (!present)
+            {
+                NS_Request->iResponseErrorCode = ERROR_INVALID_PATH;
+                strncpy(NS_Request->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
+                printf(RED "[-]NS_Listner_Thread: File Not Found\n" CRESET);
+                fprintf(Log_File, "[-]NS_Listner_Thread: File Not Found [Time Stamp: %f]\n", GetCurrTime(Clock));
+                break;
+            }
+
+            char path_cpy[MAX_BUFFER_SIZE];
+            strncpy(path_cpy, file_path, MAX_BUFFER_SIZE);
+
+            // Get the corresponding Lock for the file
+            Reader_Writer_Lock *lock = trie_get_path_lock(File_Trie, path_cpy);
+
+            // Remove first token from the path (Mount)
+            char *path = NULL;
+            __strtok_r(path_cpy, "/", &path);
+
+            // Update the trie with the new path
+            int err = trie_rename(File_Trie, file_path, new_name);
+            if (err < 0)
+            {
+                NS_Request->iResponseErrorCode = ERROR_INVALID_OPERATION;
+                strncpy(NS_Request->sResponseData, "Error in renaming file", MAX_BUFFER_SIZE);
+                printf(RED "[-]NS_Listner_Thread: Error in renaming file\n" CRESET);
+                fprintf(Log_File, "[-]NS_Listner_Thread: Error in renaming file [Time Stamp: %f]\n", GetCurrTime(Clock));
+                break;
+            }
+
+            Write_Lock(lock);
+            err = rename(path, new_name);
+            Write_Unlock(lock);
+
+            if (err < 0)
+            {
+                NS_Request->iResponseErrorCode = ERROR_INVALID_OPERATION;
+                strncpy(NS_Request->sResponseData, "Error in renaming file", MAX_BUFFER_SIZE);
+                printf(RED "[-]NS_Listner_Thread: Error in renaming file\n" CRESET);
+                fprintf(Log_File, "[-]NS_Listner_Thread: Error in renaming file [Time Stamp: %f]\n", GetCurrTime(Clock));
+                break;
+            }
+
+            NS_Request->iResponseErrorCode = ERROR_CODE_SUCCESS;
+            snprintf(NS_Request->sResponseData, MAX_BUFFER_SIZE, "File Renamed Successfully %lu", NS_Response->iRequestClientID);
+
+            printf(GRN "[+]NS_Listner_Thread: File Renamed Successfully\n" CRESET);
+
+            break;
+        }
+        case CMD_LIST:
+        {
+            break;
+        }
+        case CMD_MOVE:
+        {
+            break;
+        }
+        default:
+        {
+            NS_Request->iResponseErrorCode = ERROR_INVALID_OPERATION;
+            strncpy(NS_Request->sResponseData, "Invalid Operation", MAX_BUFFER_SIZE);
+            printf(RED "[-]NS_Listner_Thread: Invalid Operation\n" CRESET);
+            fprintf(Log_File, "[-]NS_Listner_Thread: Invalid Operation [Time Stamp: %f]\n", GetCurrTime(Clock));
+            break;
+        }
+        }
+
+        // Send the response to the Name Server
+        err = send(NS_Client_Socket, NS_Request, sizeof(RESPONSE_STRUCT), 0);
+        if (CheckError(err, "[-]NS_Listner_Thread: Error in sending data to Name Server"))
+        {
+            fprintf(Log_File, "[-]NS_Listner_Thread: Error in sending data to Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
+            exit(EXIT_FAILURE);
+        }
+        printf(GRN "[+]NS_Listner_Thread: Response Sent to Name Server\n" CRESET);
+        fprintf(Log_File, "[+]NS_Listner_Thread: Response Sent to Name Server [Time Stamp: %f]\n", GetCurrTime(Clock));
+
     }
     return NULL;
 }
@@ -511,15 +578,14 @@ void *Client_Handler_Thread(void *arg)
             break;
         }
 
-
         // Get the corresponding Lock for the file
-        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+        Reader_Writer_Lock *lock = trie_get_path_lock(File_Trie, file_path);
 
         memset(file_path, 0, MAX_BUFFER_SIZE);
         strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
 
         // Remove first token from the path (Mount)
-        char* path = NULL;
+        char *path = NULL;
         __strtok_r(file_path, "/", &path);
 
         Read_Lock(lock);
@@ -599,7 +665,7 @@ void *Client_Handler_Thread(void *arg)
         strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
 
         int present = trie_search(File_Trie, Client_Request_Struct->sRequestPath);
-        if(!present)
+        if (!present)
         {
             Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
             strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
@@ -616,17 +682,17 @@ void *Client_Handler_Thread(void *arg)
         }
 
         // Get the corresponding Lock for the file
-        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+        Reader_Writer_Lock *lock = trie_get_path_lock(File_Trie, file_path);
 
         memset(file_path, 0, MAX_BUFFER_SIZE);
         strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
 
         // Remove first token from the path (Mount)
-        char* path = NULL;
+        char *path = NULL;
         __strtok_r(file_path, "/", &path);
 
         // Open the file and write to it with the specified flag
-        char* mode = (write_flag == REQUEST_FLAG_OVERWRITE) ? "w" : "a";
+        char *mode = (write_flag == REQUEST_FLAG_OVERWRITE) ? "w" : "a";
 
         Write_Lock(lock);
         FILE *file = fopen(path, mode);
@@ -654,7 +720,7 @@ void *Client_Handler_Thread(void *arg)
             // check if the stop sequence is received
             if (strncmp(buffer, stop_sequence, MAX_BUFFER_SIZE) == 0)
                 break;
-            
+
             size_t writeSize = fwrite(buffer, 1, strlen(buffer), file);
             printf("Writing %ld bytes to file\n", writeSize);
             fprintf(Log_File, "Writing %ld bytes to file\n", writeSize);
@@ -691,7 +757,8 @@ void *Client_Handler_Thread(void *arg)
         strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
 
         int present = trie_search(File_Trie, Client_Request_Struct->sRequestPath);
-        if(!present){
+        if (!present)
+        {
             Client_Response_Struct->iResponseErrorCode = ERROR_INVALID_PATH;
             strncpy(Client_Response_Struct->sResponseData, "File Not Found", MAX_BUFFER_SIZE);
             printf(RED "[-]Client_Handler_Thread: File Not Found\n" CRESET);
@@ -700,13 +767,13 @@ void *Client_Handler_Thread(void *arg)
         }
 
         // Get the corresponding Lock for the file
-        Reader_Writer_Lock* lock = trie_get_path_lock(File_Trie, file_path);
+        Reader_Writer_Lock *lock = trie_get_path_lock(File_Trie, file_path);
 
         memset(file_path, 0, MAX_BUFFER_SIZE);
         strncpy(file_path, Client_Request_Struct->sRequestPath, MAX_BUFFER_SIZE);
 
         // Remove first token from the path (Mount)
-        char* path = NULL;
+        char *path = NULL;
         __strtok_r(file_path, "/", &path);
 
         PATH_INFO_STRUCT info;
@@ -742,8 +809,8 @@ void *Client_Handler_Thread(void *arg)
         info_struct->iPathModificationTime = file_stat.st_mtime;
         info_struct->iPathCreationTime = file_stat.st_ctime;
         info_struct->iPathAccessTime = file_stat.st_atime;
-        info_struct->iPathLinks = file_stat.st_nlink; 
-        
+        info_struct->iPathLinks = file_stat.st_nlink;
+
         // send the info struct to the client
         send(Client_Socket, info_struct, sizeof(PATH_INFO_STRUCT), 0);
 
